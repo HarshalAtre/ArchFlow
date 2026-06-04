@@ -1,0 +1,23 @@
+{
+  "name": "visual-arch-board",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "packages/board-core",
+    "packages/architecture-engine",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run build:packages && concurrently \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "build:packages": "npm run build -w packages/shared && npm run build -w packages/board-core && npm run build -w packages/architecture-engine",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "npm run lint --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.5"
+  }
+}

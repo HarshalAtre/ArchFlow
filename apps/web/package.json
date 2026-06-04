@@ -1,0 +1,28 @@
+{
+  "name": "@visual-arch-board/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@visual-arch-board/architecture-engine": "0.1.0",
+    "@visual-arch-board/shared": "0.1.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "@xyflow/react": "^12.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vite": "^8.0.16",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "typescript": "^5.4.5"
+  }
+}
