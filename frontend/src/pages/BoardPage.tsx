@@ -180,6 +180,20 @@ export function BoardPage() {
     }
   };
 
+  const updateSelectedElementLabel = (label: string) => {
+    if (!selectedElementId) {
+      return;
+    }
+
+    setGraph((currentGraph) => ({
+      ...currentGraph,
+      elements: currentGraph.elements.map((element) =>
+        element.id === selectedElementId ? { ...element, label } : element,
+      ),
+    }));
+    markUnsaved();
+  };
+
   return (
     <main className="app-shell">
       <aside className="toolbar">
@@ -255,8 +269,16 @@ export function BoardPage() {
           <span className="section-label">Context Layer</span>
           {selectedElement ? (
             <div className="selected-card">
-              <strong>{selectedElement.label}</strong>
-              <span>{selectedElement.type}</span>
+              <label className="field-group">
+                <span>Component label</span>
+                <input
+                  aria-label="Selected component label"
+                  className="text-input"
+                  value={selectedElement.label}
+                  onChange={(event) => updateSelectedElementLabel(event.target.value)}
+                />
+              </label>
+              <span>{labelForType(selectedElement.type)}</span>
               <textarea placeholder="Add implementation notes, API details, links, or code context..." />
             </div>
           ) : (

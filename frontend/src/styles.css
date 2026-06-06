@@ -126,6 +126,18 @@ h1 {
   background: #f8fafc;
 }
 
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-group span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .selected-card span,
 .suggestion-card span,
 .muted {
