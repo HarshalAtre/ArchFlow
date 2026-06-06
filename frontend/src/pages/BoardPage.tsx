@@ -135,15 +135,19 @@ export function BoardPage() {
   };
 
   const addNode = (type: BoardElementType) => {
+    addElement(type, labelForType(type));
+    markUnsaved();
+  };
+
+  const addElement = (type: BoardElementType, label: string) => {
     const id = `${type}-${crypto.randomUUID()}`;
     setGraph((currentGraph) => ({
       ...currentGraph,
       elements: [
         ...currentGraph.elements,
-        createElement(id, type, labelForType(type), 160 + currentGraph.elements.length * 24, 120),
+        createElement(id, type, label, 160 + currentGraph.elements.length * 24, 120),
       ],
     }));
-    markUnsaved();
   };
 
   const handleCleanUp = () => {
@@ -217,6 +221,18 @@ export function BoardPage() {
     markUnsaved();
   };
 
+  const applySuggestion = (suggestion: ArchitectureSuggestion) => {
+    if (!suggestion.suggestedElementType) {
+      return;
+    }
+
+    addElement(suggestion.suggestedElementType, labelForType(suggestion.suggestedElementType));
+    setSuggestions((currentSuggestions) =>
+      currentSuggestions.filter((currentSuggestion) => currentSuggestion.id !== suggestion.id),
+    );
+    markUnsaved();
+  };
+
   return (
     <main className="app-shell">
       <BoardToolbar
@@ -249,7 +265,7 @@ export function BoardPage() {
           onLabelChange={updateSelectedElementLabel}
           onNotesChange={updateSelectedElementNotes}
         />
-        <ArchitectureAssistPanel suggestions={suggestions} />
+        <ArchitectureAssistPanel suggestions={suggestions} onApplySuggestion={applySuggestion} />
       </aside>
     </main>
   );
