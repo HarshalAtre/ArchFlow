@@ -6,15 +6,14 @@ import type { Board, BoardGraph } from "@visual-arch-board/shared";
 import cors from "cors";
 import express, { Request, Response } from "express";
 
+import { createBoard, findBoardById, updateBoard } from "./modules/boards/board.repository.js";
+import { env } from "./shared/config/env.js";
+import { connectToMongo } from "./shared/database/mongo.js";
+
 const app = express();
-const port = Number(process.env.PORT ?? 4000);
-const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
-
-const boards = new Map<string, Board>();
-
 app.use(
   cors({
-    origin: webOrigin,
+    origin: env.webOrigin,
   }),
 );
 app.use(express.json({ limit: "1mb" }));
@@ -22,11 +21,11 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/api/health", (_request: Request, response: Response) => {
   response.json({
     ok: true,
-    service: "visual-arch-board-api",
+    service: "archflow-api",
   });
 });
 
-app.post("/api/boards", (request: Request, response: Response) => {
+app.post("/api/boards", async (request: Request, response: Response) => {
   const now = new Date().toISOString();
   const graph = request.body as Partial<BoardGraph>;
   const board: Board = {
@@ -46,12 +45,12 @@ app.post("/api/boards", (request: Request, response: Response) => {
     return;
   }
 
-  boards.set(board.id, board);
-  response.status(201).json(board);
+  const createdBoard = await createBoard(board);
+  response.status(201).json(createdBoard);
 });
 
-app.get("/api/boards/:boardId", (request: Request, response: Response) => {
-  const board = boards.get(request.params.boardId);
+app.get("/api/boards/:boardId", async (request: Request, response: Response) => {
+  const board = await findBoardById(request.params.boardId);
 
   if (!board) {
     response.status(404).json({ message: "Board not found" });
@@ -61,8 +60,8 @@ app.get("/api/boards/:boardId", (request: Request, response: Response) => {
   response.json(board);
 });
 
-app.patch("/api/boards/:boardId", (request: Request, response: Response) => {
-  const currentBoard = boards.get(request.params.boardId);
+app.patch("/api/boards/:boardId", async (request: Request, response: Response) => {
+  const currentBoard = await findBoardById(request.params.boardId);
 
   if (!currentBoard) {
     response.status(404).json({ message: "Board not found" });
@@ -84,8 +83,8 @@ app.patch("/api/boards/:boardId", (request: Request, response: Response) => {
     return;
   }
 
-  boards.set(nextBoard.id, nextBoard);
-  response.json(nextBoard);
+  const updatedBoard = await updateBoard(nextBoard);
+  response.json(updatedBoard);
 });
 
 app.post("/api/architecture/analyze", (request: Request, response: Response) => {
@@ -114,6 +113,19 @@ app.post("/api/architecture/cleanup", (request: Request, response: Response) => 
   response.json(cleanupArchitectureLayout(graph));
 });
 
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+async function bootstrap(): Promise<void> {
+  if (!env.mongoUri) {
+    throw new Error("MONGO_URI is required");
+  }
+
+  await connectToMongo(env.mongoUri);
+
+  app.listen(env.port, () => {
+    console.log(`API listening on http://localhost:${env.port}`);
+  });
+}
+
+bootstrap().catch((error: unknown) => {
+  console.error("Failed to start API", error);
+  process.exit(1);
 });
