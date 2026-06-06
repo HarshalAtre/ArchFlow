@@ -1,4 +1,4 @@
-import type { Board } from "@visual-arch-board/shared";
+import type { Board } from "../../types/board.js";
 
 import { BoardModel } from "./board.schema.js";
 

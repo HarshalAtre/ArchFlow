@@ -3,7 +3,7 @@ import type {
   BoardElement,
   BoardElementType,
   BoardGraph,
-} from "@visual-arch-board/shared";
+} from "../../types/board.js";
 
 type Layer = {
   types: BoardElementType[];

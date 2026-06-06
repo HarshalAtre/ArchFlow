@@ -33,12 +33,11 @@ The project is realistic in 10 to 15 days if scoped carefully.
 - Socket.io for real-time collaboration
 - Redis for presence, event fanout, and temporary board state sync
 
-### Shared Packages
+### Shared Contracts
 
-- Shared domain types
-- Shared event contracts
-- Shared validators
-- Shared architecture suggestion models
+- Keep frontend and backend data contracts aligned
+- Store board/domain types in clear local `types/` folders
+- Keep validation and architecture rules in focused backend/frontend modules
 
 ## Why React Flow Instead Of Raw Fabric.js
 
@@ -55,21 +54,15 @@ Advantages:
 
 Fabric.js can be considered later if freehand sketching becomes important.
 
-## Monorepo Structure
+## Project Structure
 
 ```txt
 visual-arch-board/
-  apps/
-    web/
-    api/
-
-  packages/
-    shared/
-    board-core/
-    architecture-engine/
+  frontend/
+  backend/
 ```
 
-### apps/web
+### frontend
 
 React frontend application.
 
@@ -82,7 +75,7 @@ Responsibilities:
 - Send and receive collaboration events
 - Display context and architecture suggestions
 
-### apps/api
+### backend
 
 Node.js backend application.
 
@@ -95,47 +88,12 @@ Responsibilities:
 - Run architecture assist logic
 - Expose REST and WebSocket APIs
 
-### packages/shared
-
-Shared contracts used by frontend and backend.
-
-Responsibilities:
-
-- Board element types
-- Board event types
-- API request and response types
-- Architecture suggestion types
-- Validation schemas
-
-### packages/board-core
-
-Framework-independent board domain logic.
-
-Responsibilities:
-
-- Board graph operations
-- Element creation rules
-- Element update rules
-- Board serialization
-- Board validation
-- Conversion between UI state and domain state
-
-### packages/architecture-engine
-
-Architecture analysis and cleanup logic.
-
-Responsibilities:
-
-- Mass cleanup layout algorithms
-- Rule-based architecture suggestions
-- Detection of missing components
-- Scalability and performance recommendations
-- Future AI integration boundary
+Shared concepts such as board types, validation, cleanup, and architecture suggestions now live inside the app that uses them. This keeps the folder structure easier to understand while the project is still small.
 
 ## Frontend Structure
 
 ```txt
-apps/web/src/
+frontend/src/
   app/
     providers/
     routes/
@@ -170,18 +128,17 @@ apps/web/src/
     user/
     context-item/
 
-  shared/
-    ui/
-    lib/
-    api/
-    types/
-    constants/
+  ui/
+  lib/
+  api/
+  types/
+  constants/
 ```
 
 ## Backend Structure
 
 ```txt
-apps/api/src/
+backend/src/
   modules/
     boards/
       board.controller.ts
@@ -214,12 +171,10 @@ apps/api/src/
       auth.controller.ts
       auth.service.ts
 
-  shared/
-    database/
-    redis/
-    config/
-    errors/
-    logger/
+  config/
+  database/
+  errors/
+  logger/
 ```
 
 ## Core Design Principles
@@ -250,9 +205,9 @@ Related logic should stay together.
 - Cleanup and architecture suggestions belong to the architecture engine.
 - Realtime sync belongs to the collaboration module.
 
-### 4. Shared Contracts
+### 4. Consistent Contracts
 
-Frontend and backend should share the same types for important system boundaries.
+Frontend and backend should keep the same shapes for important system boundaries. In this simplified structure, the types live locally in each app for readability. If the project grows, these can be extracted into a small shared package later.
 
 Example:
 
@@ -595,7 +550,6 @@ User selects a board element
 - Set up React frontend
 - Set up Node.js backend
 - Add TypeScript configuration
-- Add shared package
 - Define initial board types
 - Create basic app shell
 
@@ -720,7 +674,7 @@ User selects a board element
 - The project is modeled as a graph of architecture elements and relationships.
 - React Flow is used because architecture diagrams are graph-based, not freehand drawings.
 - The architecture engine is framework-independent, so it can be tested separately.
-- Shared packages keep frontend and backend contracts consistent.
+- Consistent board contracts keep frontend and backend behavior aligned.
 - Collaboration is event-driven instead of syncing random full state repeatedly.
 - Redis is used for presence and real-time fanout, not as the primary database.
 - Context layer turns the tool from a whiteboard into an execution workspace.
@@ -753,4 +707,3 @@ Features to avoid in the first 10 days:
 - Overly complex animations
 
 These can be added later, but the first goal is a polished, well-architected MVP.
-

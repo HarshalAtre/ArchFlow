@@ -36,45 +36,9 @@ export type BoardEdge = {
   metadata?: Record<string, unknown>;
 };
 
-export type Board = {
-  id: string;
-  name: string;
-  ownerId: string;
+export type BoardGraph = {
   elements: BoardElement[];
   edges: BoardEdge[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type ContextItem = {
-  id: string;
-  boardId: string;
-  elementId: string;
-  type: "note" | "link" | "code" | "file" | "api" | "schema";
-  title: string;
-  content: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type BoardEventType =
-  | "ELEMENT_CREATED"
-  | "ELEMENT_MOVED"
-  | "ELEMENT_UPDATED"
-  | "ELEMENT_DELETED"
-  | "EDGE_CREATED"
-  | "EDGE_DELETED"
-  | "CONTEXT_ATTACHED"
-  | "BOARD_CLEANED_UP";
-
-export type BoardEvent<TPayload extends Record<string, unknown> = Record<string, unknown>> = {
-  id: string;
-  boardId: string;
-  userId: string;
-  type: BoardEventType;
-  payload: TPayload;
-  createdAt: string;
 };
 
 export type ArchitectureSuggestion = {
@@ -85,9 +49,4 @@ export type ArchitectureSuggestion = {
   description: string;
   relatedElementIds: string[];
   suggestedElementType?: BoardElementType;
-};
-
-export type BoardGraph = {
-  elements: BoardElement[];
-  edges: BoardEdge[];
 };

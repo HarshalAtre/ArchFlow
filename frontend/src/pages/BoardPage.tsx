@@ -11,9 +11,10 @@ import {
   ReactFlow,
   applyNodeChanges,
 } from "@xyflow/react";
-import { cleanupArchitectureLayout, analyzeArchitecture } from "@visual-arch-board/architecture-engine";
-import type { ArchitectureSuggestion, BoardElement, BoardElementType, BoardGraph } from "@visual-arch-board/shared";
 import { useMemo, useState } from "react";
+
+import { analyzeArchitecture, cleanupArchitectureLayout } from "../services/architectureEngine";
+import type { ArchitectureSuggestion, BoardElement, BoardElementType, BoardGraph } from "../types/board";
 
 const nodeTypes: BoardElementType[] = [
   "client",

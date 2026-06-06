@@ -1,5 +1,6 @@
-import type { Board } from "@visual-arch-board/shared";
 import { Schema, model } from "mongoose";
+
+import type { Board } from "../../types/board.js";
 
 const positionSchema = new Schema(
   {

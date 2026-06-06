@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 
-import { analyzeArchitecture, cleanupArchitectureLayout } from "@visual-arch-board/architecture-engine";
-import { validateBoardGraph } from "@visual-arch-board/board-core";
-import type { Board, BoardGraph } from "@visual-arch-board/shared";
 import cors from "cors";
 import express, { Request, Response } from "express";
 
+import { analyzeArchitecture, cleanupArchitectureLayout } from "./modules/architecture/architecture.service.js";
 import { createBoard, findBoardById, updateBoard } from "./modules/boards/board.repository.js";
-import { env } from "./shared/config/env.js";
-import { connectToMongo } from "./shared/database/mongo.js";
+import { validateBoardGraph } from "./modules/boards/board.validation.js";
+import { env } from "./config/env.js";
+import { connectToMongo } from "./database/mongo.js";
+import type { Board, BoardGraph } from "./types/board.js";
 
 const app = express();
 app.use(

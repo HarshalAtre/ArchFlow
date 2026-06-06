@@ -1,5 +1,5 @@
 {
-  "name": "@visual-arch-board/api",
+  "name": "@archflow/backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,9 +11,6 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@visual-arch-board/architecture-engine": "0.1.0",
-    "@visual-arch-board/board-core": "0.1.0",
-    "@visual-arch-board/shared": "0.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.18.3",

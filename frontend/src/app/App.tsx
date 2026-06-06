@@ -1,6 +1,6 @@
 import { ReactFlowProvider } from "@xyflow/react";
 
-import { BoardPage } from "../features/board/BoardPage";
+import { BoardPage } from "../pages/BoardPage";
 
 export function App() {
   return (
