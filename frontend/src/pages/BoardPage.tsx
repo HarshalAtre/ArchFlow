@@ -1,18 +1,19 @@
 import {
   addEdge,
-  Background,
   Connection,
-  Controls,
   Edge,
-  MiniMap,
   Node,
   NodeChange,
   OnNodesChange,
-  ReactFlow,
   applyNodeChanges,
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 
+import { ArchitectureAssistPanel } from "../components/board/ArchitectureAssistPanel";
+import { BoardCanvas } from "../components/board/BoardCanvas";
+import { BoardToolbar } from "../components/board/BoardToolbar";
+import { ContextPanel } from "../components/board/ContextPanel";
+import { labelForType } from "../components/board/boardLabels";
 import { analyzeArchitecture, cleanupArchitectureLayout } from "../services/architectureEngine";
 import { createBoard, getBoard, updateBoard } from "../services/boardApi";
 import type { ArchitectureSuggestion, BoardElement, BoardElementType, BoardGraph } from "../types/board";
@@ -218,117 +219,37 @@ export function BoardPage() {
 
   return (
     <main className="app-shell">
-      <aside className="toolbar">
-        <div>
-          <p className="eyebrow">Architecture Board</p>
-          <h1>Visual System Designer</h1>
-        </div>
+      <BoardToolbar
+        boardId={boardId}
+        boardName={boardName}
+        nodeTypes={nodeTypes}
+        saveStatus={saveStatus}
+        statusMessage={statusMessage}
+        onAddNode={addNode}
+        onAnalyze={() => setSuggestions(analyzeArchitecture(graph))}
+        onBoardNameChange={(name) => {
+          setBoardName(name);
+          markUnsaved();
+        }}
+        onCleanUp={handleCleanUp}
+        onSaveBoard={handleSaveBoard}
+      />
 
-        <div className="tool-section">
-          <span className="section-label">Board</span>
-          <input
-            aria-label="Board name"
-            className="text-input"
-            value={boardName}
-            onChange={(event) => {
-              setBoardName(event.target.value);
-              markUnsaved();
-            }}
-          />
-          <button
-            type="button"
-            className="primary-button"
-            disabled={saveStatus === "saving" || saveStatus === "loading"}
-            onClick={handleSaveBoard}
-          >
-            {saveStatus === "saving" ? "Saving..." : "Save Board"}
-          </button>
-          <p className={`status-text status-${saveStatus}`}>
-            {statusMessage}
-            {boardId ? ` (${shortBoardId(boardId)})` : ""}
-          </p>
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Add Component</span>
-          <div className="button-grid">
-            {nodeTypes.map((type) => (
-              <button key={type} type="button" onClick={() => addNode(type)}>
-                {labelForType(type)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Actions</span>
-          <button type="button" onClick={handleCleanUp}>
-            Clean Up
-          </button>
-          <button type="button" onClick={() => setSuggestions(analyzeArchitecture(graph))}>
-            Analyze
-          </button>
-        </div>
-      </aside>
-
-      <section className="board-canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={handleNodesChange}
-          onConnect={handleConnect}
-          onNodeClick={(_, node) => setSelectedElementId(node.id)}
-          fitView
-        >
-          <Background />
-          <MiniMap />
-          <Controls />
-        </ReactFlow>
-      </section>
+      <BoardCanvas
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={handleNodesChange}
+        onConnect={handleConnect}
+        onNodeSelect={setSelectedElementId}
+      />
 
       <aside className="context-panel">
-        <section>
-          <span className="section-label">Context Layer</span>
-          {selectedElement ? (
-            <div className="selected-card">
-              <label className="field-group">
-                <span>Component label</span>
-                <input
-                  aria-label="Selected component label"
-                  className="text-input"
-                  value={selectedElement.label}
-                  onChange={(event) => updateSelectedElementLabel(event.target.value)}
-                />
-              </label>
-              <span>{labelForType(selectedElement.type)}</span>
-              <textarea
-                aria-label="Selected component notes"
-                placeholder="Add implementation notes, API details, links, or code context..."
-                value={selectedElement.metadata?.notes ?? ""}
-                onChange={(event) => updateSelectedElementNotes(event.target.value)}
-              />
-            </div>
-          ) : (
-            <p className="muted">Select a component to attach notes and execution context.</p>
-          )}
-        </section>
-
-        <section>
-          <span className="section-label">Architecture Assist</span>
-          {suggestions.length > 0 ? (
-            <div className="suggestions">
-              {suggestions.map((suggestion) => (
-                <article key={suggestion.id} className="suggestion-card">
-                  <span>{suggestion.severity}</span>
-                  <strong>{suggestion.title}</strong>
-                  <p>{suggestion.description}</p>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">Run Analyze to get system design suggestions.</p>
-          )}
-        </section>
+        <ContextPanel
+          selectedElement={selectedElement}
+          onLabelChange={updateSelectedElementLabel}
+          onNotesChange={updateSelectedElementNotes}
+        />
+        <ArchitectureAssistPanel suggestions={suggestions} />
       </aside>
     </main>
   );
@@ -383,26 +304,6 @@ function toFlowEdge(edge: { id: string; sourceElementId: string; targetElementId
     target: edge.targetElementId,
     animated: true,
   };
-}
-
-function labelForType(type: BoardElementType): string {
-  const labels: Record<BoardElementType, string> = {
-    "api-gateway": "API Gateway",
-    cache: "Cache",
-    client: "Client",
-    database: "Database",
-    "external-api": "External API",
-    "load-balancer": "Load Balancer",
-    queue: "Queue",
-    service: "Service",
-    text: "Text",
-  };
-
-  return labels[type];
-}
-
-function shortBoardId(boardId: string): string {
-  return boardId.slice(0, 8);
 }
 
 function hasUserNodeChange(changes: NodeChange[]): boolean {
