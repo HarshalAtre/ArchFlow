@@ -20,11 +20,14 @@ import { analyzeArchitecture, cleanupArchitectureLayout } from "../services/arch
 import { createBoard, getBoard, updateBoard } from "../services/boardApi";
 import type {
   ArchitectureSuggestion,
+  Board,
   BoardEdge,
   BoardElement,
+  BoardElementMetadata,
   BoardElementType,
   BoardGraph,
   Position,
+  RecentBoard,
 } from "../types/board";
 
 const nodeTypes: BoardElementType[] = [
@@ -59,6 +62,7 @@ const initialGraph: BoardGraph = {
 };
 
 const lastBoardStorageKey = "archflow:last-board-id";
+const recentBoardsStorageKey = "archflow:recent-boards";
 
 export function BoardPage() {
   const [boardId, setBoardId] = useState<string | null>(null);
@@ -66,6 +70,7 @@ export function BoardPage() {
   const [graph, setGraph] = useState<BoardGraph>(initialGraph);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [recentBoards, setRecentBoards] = useState<RecentBoard[]>(() => readRecentBoards());
   const [suggestions, setSuggestions] = useState<ArchitectureSuggestion[]>([]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved board");
@@ -89,26 +94,35 @@ export function BoardPage() {
       return;
     }
 
-    setSaveStatus("loading");
-    setStatusMessage("Loading saved board...");
-
-    getBoard(savedBoardId)
-      .then((board) => {
-        setBoardId(board.id);
-        setBoardName(board.name);
-        setGraph({
-          elements: board.elements,
-          edges: board.edges,
-        });
-        setSaveStatus("saved");
-        setStatusMessage("Loaded last saved board");
-      })
-      .catch(() => {
-        localStorage.removeItem(lastBoardStorageKey);
-        setSaveStatus("error");
-        setStatusMessage("Could not load last board");
-      });
+    void loadBoard(savedBoardId, "Loaded last saved board");
   }, []);
+
+  async function loadBoard(boardIdToLoad: string, successMessage = "Loaded board") {
+    setSaveStatus("loading");
+    setStatusMessage("Loading board...");
+
+    try {
+      const board = await getBoard(boardIdToLoad);
+
+      setBoardId(board.id);
+      setBoardName(board.name);
+      setGraph({
+        elements: board.elements,
+        edges: board.edges,
+      });
+      setSelectedElementId(null);
+      setSelectedEdgeId(null);
+      setSuggestions([]);
+      localStorage.setItem(lastBoardStorageKey, board.id);
+      setRecentBoards(updateRecentBoards(board));
+      setSaveStatus("saved");
+      setStatusMessage(successMessage);
+    } catch (error) {
+      localStorage.removeItem(lastBoardStorageKey);
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Could not load board");
+    }
+  }
 
   const handleNodesChange: OnNodesChange = (changes: NodeChange[]) => {
     const nextNodes = applyNodeChanges(changes, nodes);
@@ -249,6 +263,7 @@ export function BoardPage() {
         edges: savedBoard.edges,
       });
       localStorage.setItem(lastBoardStorageKey, savedBoard.id);
+      setRecentBoards(updateRecentBoards(savedBoard));
       setSaveStatus("saved");
       setStatusMessage("Saved");
     } catch (error) {
@@ -271,7 +286,7 @@ export function BoardPage() {
     markUnsaved();
   };
 
-  const updateSelectedElementNotes = (notes: string) => {
+  const updateSelectedElementMetadata = (metadata: BoardElementMetadata) => {
     if (!selectedElementId) {
       return;
     }
@@ -282,10 +297,7 @@ export function BoardPage() {
         element.id === selectedElementId
           ? {
               ...element,
-              metadata: {
-                ...element.metadata,
-                notes,
-              },
+              metadata,
             }
           : element,
       ),
@@ -310,6 +322,7 @@ export function BoardPage() {
         boardId={boardId}
         boardName={boardName}
         nodeTypes={nodeTypes}
+        recentBoards={recentBoards}
         saveStatus={saveStatus}
         statusMessage={statusMessage}
         onAddNode={addNode}
@@ -319,6 +332,9 @@ export function BoardPage() {
           markUnsaved();
         }}
         onCleanUp={handleCleanUp}
+        onLoadBoard={(boardIdToLoad) => {
+          void loadBoard(boardIdToLoad);
+        }}
         onSaveBoard={handleSaveBoard}
       />
 
@@ -349,7 +365,7 @@ export function BoardPage() {
           onDeleteEdge={deleteSelectedEdge}
           onDeleteElement={deleteSelectedElement}
           onLabelChange={updateSelectedElementLabel}
-          onNotesChange={updateSelectedElementNotes}
+          onMetadataChange={updateSelectedElementMetadata}
         />
         <ArchitectureAssistPanel suggestions={suggestions} onApplySuggestion={applySuggestion} />
       </aside>
@@ -557,4 +573,48 @@ function layerYFor(type: BoardElementType): number {
   }
 
   return 820;
+}
+
+function readRecentBoards(): RecentBoard[] {
+  const storedValue = localStorage.getItem(recentBoardsStorageKey);
+
+  if (!storedValue) {
+    return [];
+  }
+
+  try {
+    const parsedValue = JSON.parse(storedValue);
+    return Array.isArray(parsedValue) ? parsedValue.filter(isRecentBoard) : [];
+  } catch {
+    return [];
+  }
+}
+
+function updateRecentBoards(board: Board): RecentBoard[] {
+  const nextRecentBoard: RecentBoard = {
+    id: board.id,
+    name: board.name,
+    updatedAt: board.updatedAt,
+  };
+  const nextRecentBoards = [
+    nextRecentBoard,
+    ...readRecentBoards().filter((recentBoard) => recentBoard.id !== board.id),
+  ].slice(0, 5);
+
+  localStorage.setItem(recentBoardsStorageKey, JSON.stringify(nextRecentBoards));
+  return nextRecentBoards;
+}
+
+function isRecentBoard(value: unknown): value is RecentBoard {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<RecentBoard>;
+
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.updatedAt === "string"
+  );
 }

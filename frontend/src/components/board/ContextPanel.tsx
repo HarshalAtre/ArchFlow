@@ -14,7 +14,7 @@ type ContextPanelProps = {
   onDeleteEdge: () => void;
   onDeleteElement: () => void;
   onLabelChange: (label: string) => void;
-  onNotesChange: (notes: string) => void;
+  onMetadataChange: (metadata: NonNullable<BoardElement["metadata"]>) => void;
 };
 
 export function ContextPanel({
@@ -23,8 +23,10 @@ export function ContextPanel({
   onDeleteEdge,
   onDeleteElement,
   onLabelChange,
-  onNotesChange,
+  onMetadataChange,
 }: ContextPanelProps) {
+  const metadata = selectedElement?.metadata ?? {};
+
   return (
     <section>
       <span className="section-label">Context Layer</span>
@@ -40,11 +42,41 @@ export function ContextPanel({
             />
           </label>
           <span>{labelForType(selectedElement.type)}</span>
+          <label className="field-group">
+            <span>Owner</span>
+            <input
+              aria-label="Selected component owner"
+              className="text-input"
+              placeholder="Team or person responsible"
+              value={metadata.owner ?? ""}
+              onChange={(event) => onMetadataChange({ ...metadata, owner: event.target.value })}
+            />
+          </label>
+          <label className="field-group">
+            <span>API endpoint</span>
+            <input
+              aria-label="Selected component API endpoint"
+              className="text-input"
+              placeholder="/api/orders or https://service.internal"
+              value={metadata.apiEndpoint ?? ""}
+              onChange={(event) => onMetadataChange({ ...metadata, apiEndpoint: event.target.value })}
+            />
+          </label>
+          <label className="field-group">
+            <span>Reference links</span>
+            <textarea
+              aria-label="Selected component links"
+              className="compact-textarea"
+              placeholder="Docs, dashboards, tickets, runbooks..."
+              value={metadata.links ?? ""}
+              onChange={(event) => onMetadataChange({ ...metadata, links: event.target.value })}
+            />
+          </label>
           <textarea
             aria-label="Selected component notes"
             placeholder="Add implementation notes, API details, links, or code context..."
-            value={selectedElement.metadata?.notes ?? ""}
-            onChange={(event) => onNotesChange(event.target.value)}
+            value={metadata.notes ?? ""}
+            onChange={(event) => onMetadataChange({ ...metadata, notes: event.target.value })}
           />
           <button type="button" className="danger-button" onClick={onDeleteElement}>
             Delete component

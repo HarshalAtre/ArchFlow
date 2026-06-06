@@ -20,8 +20,17 @@ export type Size = {
 };
 
 export type BoardElementMetadata = {
+  apiEndpoint?: string;
+  links?: string;
   notes?: string;
+  owner?: string;
   [key: string]: unknown;
+};
+
+export type RecentBoard = {
+  id: string;
+  name: string;
+  updatedAt: string;
 };
 
 export type BoardElement = {

@@ -1,4 +1,4 @@
-import type { BoardElementType } from "../../types/board";
+import type { BoardElementType, RecentBoard } from "../../types/board";
 
 import { labelForType } from "./boardLabels";
 
@@ -8,12 +8,14 @@ type BoardToolbarProps = {
   boardId: string | null;
   boardName: string;
   nodeTypes: BoardElementType[];
+  recentBoards: RecentBoard[];
   saveStatus: SaveStatus;
   statusMessage: string;
   onAddNode: (type: BoardElementType) => void;
   onAnalyze: () => void;
   onBoardNameChange: (name: string) => void;
   onCleanUp: () => void;
+  onLoadBoard: (boardId: string) => void;
   onSaveBoard: () => void;
 };
 
@@ -21,12 +23,14 @@ export function BoardToolbar({
   boardId,
   boardName,
   nodeTypes,
+  recentBoards,
   saveStatus,
   statusMessage,
   onAddNode,
   onAnalyze,
   onBoardNameChange,
   onCleanUp,
+  onLoadBoard,
   onSaveBoard,
 }: BoardToolbarProps) {
   return (
@@ -35,6 +39,25 @@ export function BoardToolbar({
         <p className="eyebrow">Architecture Board</p>
         <h1>Visual System Designer</h1>
       </div>
+
+      {recentBoards.length > 0 ? (
+        <div className="tool-section">
+          <span className="section-label">Recent Boards</span>
+          <div className="recent-board-list">
+            {recentBoards.map((recentBoard) => (
+              <button
+                key={recentBoard.id}
+                type="button"
+                className="recent-board-button"
+                onClick={() => onLoadBoard(recentBoard.id)}
+              >
+                <span>{recentBoard.name}</span>
+                <small>{new Date(recentBoard.updatedAt).toLocaleString()}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="tool-section">
         <span className="section-label">Board</span>
