@@ -115,6 +115,16 @@ h1 {
   color: #ffffff;
 }
 
+.danger-button {
+  border-color: #fecaca;
+  background: #fff5f5;
+  color: #b42318;
+}
+
+.danger-button:hover {
+  border-color: #ef4444;
+}
+
 .selected-card,
 .suggestion-card {
   display: flex;
