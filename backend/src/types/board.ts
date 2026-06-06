@@ -19,13 +19,18 @@ export type Size = {
   height: number;
 };
 
+export type BoardElementMetadata = {
+  notes?: string;
+  [key: string]: unknown;
+};
+
 export type BoardElement = {
   id: string;
   type: BoardElementType;
   position: Position;
   size: Size;
   label: string;
-  metadata?: Record<string, unknown>;
+  metadata?: BoardElementMetadata;
 };
 
 export type BoardEdge = {

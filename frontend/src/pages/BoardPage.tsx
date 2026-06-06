@@ -194,6 +194,28 @@ export function BoardPage() {
     markUnsaved();
   };
 
+  const updateSelectedElementNotes = (notes: string) => {
+    if (!selectedElementId) {
+      return;
+    }
+
+    setGraph((currentGraph) => ({
+      ...currentGraph,
+      elements: currentGraph.elements.map((element) =>
+        element.id === selectedElementId
+          ? {
+              ...element,
+              metadata: {
+                ...element.metadata,
+                notes,
+              },
+            }
+          : element,
+      ),
+    }));
+    markUnsaved();
+  };
+
   return (
     <main className="app-shell">
       <aside className="toolbar">
@@ -279,7 +301,12 @@ export function BoardPage() {
                 />
               </label>
               <span>{labelForType(selectedElement.type)}</span>
-              <textarea placeholder="Add implementation notes, API details, links, or code context..." />
+              <textarea
+                aria-label="Selected component notes"
+                placeholder="Add implementation notes, API details, links, or code context..."
+                value={selectedElement.metadata?.notes ?? ""}
+                onChange={(event) => updateSelectedElementNotes(event.target.value)}
+              />
             </div>
           ) : (
             <p className="muted">Select a component to attach notes and execution context.</p>
