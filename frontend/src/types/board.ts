@@ -41,6 +41,14 @@ export type BoardGraph = {
   edges: BoardEdge[];
 };
 
+export type Board = BoardGraph & {
+  id: string;
+  name: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ArchitectureSuggestion = {
   id: string;
   type: "missing-component" | "scalability" | "performance" | "reliability" | "security";

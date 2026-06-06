@@ -11,9 +11,10 @@ import {
   ReactFlow,
   applyNodeChanges,
 } from "@xyflow/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { analyzeArchitecture, cleanupArchitectureLayout } from "../services/architectureEngine";
+import { createBoard, getBoard, updateBoard } from "../services/boardApi";
 import type { ArchitectureSuggestion, BoardElement, BoardElementType, BoardGraph } from "../types/board";
 
 const nodeTypes: BoardElementType[] = [
@@ -47,14 +48,48 @@ const initialGraph: BoardGraph = {
   ],
 };
 
+const lastBoardStorageKey = "archflow:last-board-id";
+
 export function BoardPage() {
+  const [boardId, setBoardId] = useState<string | null>(null);
+  const [boardName, setBoardName] = useState("Untitled Architecture");
   const [graph, setGraph] = useState<BoardGraph>(initialGraph);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<ArchitectureSuggestion[]>([]);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
+  const [statusMessage, setStatusMessage] = useState("Unsaved board");
 
   const nodes = useMemo(() => graph.elements.map(toFlowNode), [graph.elements]);
   const edges = useMemo(() => graph.edges.map(toFlowEdge), [graph.edges]);
   const selectedElement = graph.elements.find((element) => element.id === selectedElementId);
+
+  useEffect(() => {
+    const savedBoardId = localStorage.getItem(lastBoardStorageKey);
+
+    if (!savedBoardId) {
+      return;
+    }
+
+    setSaveStatus("loading");
+    setStatusMessage("Loading saved board...");
+
+    getBoard(savedBoardId)
+      .then((board) => {
+        setBoardId(board.id);
+        setBoardName(board.name);
+        setGraph({
+          elements: board.elements,
+          edges: board.edges,
+        });
+        setSaveStatus("saved");
+        setStatusMessage("Loaded last saved board");
+      })
+      .catch(() => {
+        localStorage.removeItem(lastBoardStorageKey);
+        setSaveStatus("error");
+        setStatusMessage("Could not load last board");
+      });
+  }, []);
 
   const handleNodesChange: OnNodesChange = (changes: NodeChange[]) => {
     const nextNodes = applyNodeChanges(changes, nodes);
@@ -71,6 +106,10 @@ export function BoardPage() {
           : element;
       }),
     }));
+
+    if (hasUserNodeChange(changes)) {
+      markUnsaved();
+    }
   };
 
   const handleConnect = (connection: Connection) => {
@@ -91,6 +130,7 @@ export function BoardPage() {
         },
       ],
     }));
+    markUnsaved();
   };
 
   const addNode = (type: BoardElementType) => {
@@ -102,6 +142,42 @@ export function BoardPage() {
         createElement(id, type, labelForType(type), 160 + currentGraph.elements.length * 24, 120),
       ],
     }));
+    markUnsaved();
+  };
+
+  const handleCleanUp = () => {
+    setGraph(cleanupArchitectureLayout(graph));
+    markUnsaved();
+  };
+
+  const handleSaveBoard = async () => {
+    setSaveStatus("saving");
+    setStatusMessage("Saving...");
+
+    try {
+      const payload = {
+        name: boardName.trim() || "Untitled Architecture",
+        elements: graph.elements,
+        edges: graph.edges,
+      };
+
+      const savedBoard = boardId
+        ? await updateBoard(boardId, payload)
+        : await createBoard(payload);
+
+      setBoardId(savedBoard.id);
+      setBoardName(savedBoard.name);
+      setGraph({
+        elements: savedBoard.elements,
+        edges: savedBoard.edges,
+      });
+      localStorage.setItem(lastBoardStorageKey, savedBoard.id);
+      setSaveStatus("saved");
+      setStatusMessage("Saved");
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Save failed");
+    }
   };
 
   return (
@@ -110,6 +186,31 @@ export function BoardPage() {
         <div>
           <p className="eyebrow">Architecture Board</p>
           <h1>Visual System Designer</h1>
+        </div>
+
+        <div className="tool-section">
+          <span className="section-label">Board</span>
+          <input
+            aria-label="Board name"
+            className="text-input"
+            value={boardName}
+            onChange={(event) => {
+              setBoardName(event.target.value);
+              markUnsaved();
+            }}
+          />
+          <button
+            type="button"
+            className="primary-button"
+            disabled={saveStatus === "saving" || saveStatus === "loading"}
+            onClick={handleSaveBoard}
+          >
+            {saveStatus === "saving" ? "Saving..." : "Save Board"}
+          </button>
+          <p className={`status-text status-${saveStatus}`}>
+            {statusMessage}
+            {boardId ? ` (${shortBoardId(boardId)})` : ""}
+          </p>
         </div>
 
         <div className="tool-section">
@@ -125,7 +226,7 @@ export function BoardPage() {
 
         <div className="tool-section">
           <span className="section-label">Actions</span>
-          <button type="button" className="primary-button" onClick={() => setGraph(cleanupArchitectureLayout(graph))}>
+          <button type="button" onClick={handleCleanUp}>
             Clean Up
           </button>
           <button type="button" onClick={() => setSuggestions(analyzeArchitecture(graph))}>
@@ -182,6 +283,13 @@ export function BoardPage() {
       </aside>
     </main>
   );
+
+  function markUnsaved() {
+    if (saveStatus !== "loading" && saveStatus !== "saving") {
+      setSaveStatus("idle");
+      setStatusMessage(boardId ? "Unsaved changes" : "Unsaved board");
+    }
+  }
 }
 
 function createElement(
@@ -242,4 +350,12 @@ function labelForType(type: BoardElementType): string {
   };
 
   return labels[type];
+}
+
+function shortBoardId(boardId: string): string {
+  return boardId.slice(0, 8);
+}
+
+function hasUserNodeChange(changes: NodeChange[]): boolean {
+  return changes.some((change) => change.type === "position" || change.type === "remove");
 }

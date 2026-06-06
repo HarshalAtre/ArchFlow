@@ -14,6 +14,7 @@ body {
 }
 
 button,
+input,
 textarea {
   font: inherit;
 }
@@ -29,6 +30,25 @@ button {
 
 button:hover {
   border-color: #315ddc;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.text-input {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid #c9d3e5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #172033;
+}
+
+.text-input:focus {
+  border-color: #315ddc;
+  outline: 2px solid #dbe7ff;
 }
 
 .app-shell {
@@ -110,6 +130,21 @@ h1 {
 .suggestion-card span,
 .muted {
   color: #64748b;
+}
+
+.status-text {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.status-saved {
+  color: #15803d;
+}
+
+.status-error {
+  color: #b42318;
 }
 
 textarea {
