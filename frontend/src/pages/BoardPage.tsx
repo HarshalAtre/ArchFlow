@@ -30,7 +30,7 @@ import type {
   RecentBoard,
 } from "../types/board";
 
-const nodeTypes: BoardElementType[] = [
+const addableElementTypes: BoardElementType[] = [
   "client",
   "api-gateway",
   "service",
@@ -40,33 +40,98 @@ const nodeTypes: BoardElementType[] = [
   "external-api",
 ];
 
-const initialGraph: BoardGraph = {
+const demoBoardName = "ArchFlow Demo: Order Platform";
+
+const initialGraph: BoardGraph = createDemoGraph();
+
+function createDemoGraph(): BoardGraph {
+  return {
   elements: [
-    createElement("client-1", "client", "Web Client", 80, 80),
-    createElement("service-1", "service", "Order Service", 420, 180),
-    createElement("service-2", "service", "Notification Worker", 720, 120),
-    createElement("database-1", "database", "Orders DB", 520, 420),
+    createElement("client-1", "client", "Web Client", 80, 80, {
+      links: "https://docs.archflow.local/web-client",
+      notes: "Customer-facing checkout and account portal.",
+      owner: "Frontend Team",
+    }),
+    createElement("gateway-1", "api-gateway", "Public API Gateway", 360, 120, {
+      apiEndpoint: "https://api.archflow.local",
+      notes: "Entry layer for auth, routing, rate limits, and request tracing.",
+      owner: "Platform Team",
+    }),
+    createElement("service-1", "service", "Order Service", 620, 220, {
+      apiEndpoint: "/api/orders",
+      links: "https://docs.archflow.local/order-service",
+      notes: "Owns order creation, status changes, and checkout orchestration.",
+      owner: "Commerce Team",
+    }),
+    createElement("service-2", "service", "Notification Worker", 900, 220, {
+      notes: "Consumes async events for email, SMS, and push notifications.",
+      owner: "Messaging Team",
+    }),
+    createElement("queue-1", "queue", "Order Events", 760, 380, {
+      notes: "Decouples checkout from notification delivery and fulfillment workflows.",
+      owner: "Platform Team",
+    }),
+    createElement("cache-1", "cache", "Session Cache", 440, 420, {
+      notes: "Stores short-lived sessions and request throttling counters.",
+      owner: "Platform Team",
+    }),
+    createElement("database-1", "database", "Orders DB", 680, 520, {
+      links: "https://docs.archflow.local/orders-schema",
+      notes: "Primary order store. Needs backup and replication notes in a production design.",
+      owner: "Data Team",
+    }),
+    createElement("external-api-1", "external-api", "Payment Provider", 960, 520, {
+      apiEndpoint: "https://payments.example.com",
+      notes: "External dependency. Add timeout, retry, and circuit breaker policies.",
+      owner: "Vendor Integration Team",
+    }),
   ],
   edges: [
     {
       id: "edge-client-service",
       sourceElementId: "client-1",
+      targetElementId: "gateway-1",
+    },
+    {
+      id: "edge-gateway-orders",
+      sourceElementId: "gateway-1",
       targetElementId: "service-1",
+    },
+    {
+      id: "edge-gateway-cache",
+      sourceElementId: "gateway-1",
+      targetElementId: "cache-1",
+    },
+    {
+      id: "edge-orders-queue",
+      sourceElementId: "service-1",
+      targetElementId: "queue-1",
+    },
+    {
+      id: "edge-queue-notifications",
+      sourceElementId: "queue-1",
+      targetElementId: "service-2",
     },
     {
       id: "edge-service-db",
       sourceElementId: "service-1",
       targetElementId: "database-1",
     },
+    {
+      id: "edge-orders-payments",
+      sourceElementId: "service-1",
+      targetElementId: "external-api-1",
+    },
   ],
 };
+}
 
 const lastBoardStorageKey = "archflow:last-board-id";
 const recentBoardsStorageKey = "archflow:recent-boards";
 
 export function BoardPage() {
   const [boardId, setBoardId] = useState<string | null>(null);
-  const [boardName, setBoardName] = useState("Untitled Architecture");
+  const [boardName, setBoardName] = useState(demoBoardName);
   const [graph, setGraph] = useState<BoardGraph>(initialGraph);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -223,6 +288,18 @@ export function BoardPage() {
     markUnsaved();
   };
 
+  const loadDemoBoard = () => {
+    setBoardId(null);
+    setBoardName(demoBoardName);
+    setGraph(createDemoGraph());
+    setSelectedElementId(null);
+    setSelectedEdgeId(null);
+    setSuggestions([]);
+    localStorage.removeItem(lastBoardStorageKey);
+    setSaveStatus("idle");
+    setStatusMessage("Unsaved demo board");
+  };
+
   const deleteSelectedEdge = () => {
     if (!selectedEdgeId) {
       return;
@@ -321,7 +398,7 @@ export function BoardPage() {
       <BoardToolbar
         boardId={boardId}
         boardName={boardName}
-        nodeTypes={nodeTypes}
+        nodeTypes={addableElementTypes}
         recentBoards={recentBoards}
         saveStatus={saveStatus}
         statusMessage={statusMessage}
@@ -332,6 +409,7 @@ export function BoardPage() {
           markUnsaved();
         }}
         onCleanUp={handleCleanUp}
+        onLoadDemoBoard={loadDemoBoard}
         onLoadBoard={(boardIdToLoad) => {
           void loadBoard(boardIdToLoad);
         }}
@@ -386,6 +464,7 @@ function createElement(
   label: string,
   x: number,
   y: number,
+  metadata?: BoardElementMetadata,
 ): BoardElement {
   return {
     id,
@@ -393,24 +472,22 @@ function createElement(
     label,
     position: { x, y },
     size: { width: 180, height: 64 },
+    metadata,
   };
 }
 
 function toFlowNode(element: BoardElement): Node {
   return {
     id: element.id,
-    type: "default",
+    type: "architecture",
     position: element.position,
     data: {
-      label: `${labelForType(element.type)}: ${element.label}`,
+      contextBadges: contextBadgesForElement(element),
+      elementType: labelForType(element.type),
+      label: element.label,
     },
     style: {
       width: element.size.width,
-      borderRadius: 8,
-      border: "1px solid #b7c3d8",
-      background: "#ffffff",
-      color: "#172033",
-      fontWeight: 600,
     },
   };
 }
@@ -525,6 +602,34 @@ function suggestedEdgesForElement(
 function elementLabelForId(graph: BoardGraph, elementId: string): string {
   const element = graph.elements.find((currentElement) => currentElement.id === elementId);
   return element ? element.label : elementId;
+}
+
+function contextBadgesForElement(element: BoardElement): string[] {
+  const metadata = element.metadata;
+
+  if (!metadata) {
+    return [];
+  }
+
+  const badges: string[] = [];
+
+  if (metadata.owner) {
+    badges.push("Owner");
+  }
+
+  if (metadata.apiEndpoint) {
+    badges.push("API");
+  }
+
+  if (metadata.links) {
+    badges.push("Links");
+  }
+
+  if (metadata.notes) {
+    badges.push("Notes");
+  }
+
+  return badges;
 }
 
 function layerTypesFor(type: BoardElementType): BoardElementType[] {

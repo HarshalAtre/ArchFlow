@@ -79,6 +79,57 @@ button:disabled {
   min-height: 100vh;
 }
 
+.architecture-node {
+  position: relative;
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #b7c3d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 7%);
+  color: #172033;
+}
+
+.architecture-node-selected {
+  border-color: #315ddc;
+  box-shadow: 0 0 0 3px #dbe7ff;
+}
+
+.architecture-node-type {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.architecture-node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.architecture-node-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.architecture-node-badges span {
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #315ddc;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+}
+
 .eyebrow,
 .section-label {
   margin: 0 0 8px;

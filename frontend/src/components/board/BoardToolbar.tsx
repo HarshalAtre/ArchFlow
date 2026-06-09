@@ -15,6 +15,7 @@ type BoardToolbarProps = {
   onAnalyze: () => void;
   onBoardNameChange: (name: string) => void;
   onCleanUp: () => void;
+  onLoadDemoBoard: () => void;
   onLoadBoard: (boardId: string) => void;
   onSaveBoard: () => void;
 };
@@ -30,6 +31,7 @@ export function BoardToolbar({
   onAnalyze,
   onBoardNameChange,
   onCleanUp,
+  onLoadDemoBoard,
   onLoadBoard,
   onSaveBoard,
 }: BoardToolbarProps) {
@@ -79,6 +81,9 @@ export function BoardToolbar({
           {statusMessage}
           {boardId ? ` (${boardId.slice(0, 8)})` : ""}
         </p>
+        <button type="button" onClick={onLoadDemoBoard}>
+          Load Demo Board
+        </button>
       </div>
 
       <div className="tool-section">
