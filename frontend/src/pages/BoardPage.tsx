@@ -3,6 +3,7 @@ import {
   Connection,
   Edge,
   EdgeChange,
+  MarkerType,
   Node,
   NodeChange,
   OnNodesChange,
@@ -140,16 +141,24 @@ export function BoardPage() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved board");
 
-  const nodes = useMemo(() => graph.elements.map(toFlowNode), [graph.elements]);
-  const edges = useMemo(() => graph.edges.map(toFlowEdge), [graph.edges]);
+  const nodes = useMemo(
+    () =>
+      graph.elements.map((element) =>
+        toFlowNode(element, element.id === selectedElementId, selectElement),
+      ),
+    [graph.elements, selectedElementId],
+  );
+  const edges = useMemo(
+    () =>
+      graph.edges.map((edge) =>
+        toFlowEdge(edge, edge.id === selectedEdgeId, deleteEdge, selectEdge),
+      ),
+    [graph.edges, selectedEdgeId],
+  );
   const selectedElement = graph.elements.find((element) => element.id === selectedElementId);
   const selectedEdge = graph.edges.find((edge) => edge.id === selectedEdgeId);
   const selectedEdgeDetails = selectedEdge
-    ? {
-        id: selectedEdge.id,
-        sourceLabel: elementLabelForId(graph, selectedEdge.sourceElementId),
-        targetLabel: elementLabelForId(graph, selectedEdge.targetElementId),
-      }
+    ? edgeDetailsForGraphEdge(graph, selectedEdge)
     : undefined;
 
   useEffect(() => {
@@ -161,6 +170,32 @@ export function BoardPage() {
 
     void loadBoard(savedBoardId, "Loaded last saved board");
   }, []);
+
+  useEffect(() => {
+    const handleSelectedItemDelete = (event: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      const isEditingText =
+        activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement;
+
+      if (isEditingText || (event.key !== "Delete" && event.key !== "Backspace")) {
+        return;
+      }
+
+      if (selectedElementId) {
+        event.preventDefault();
+        deleteSelectedElement();
+        return;
+      }
+
+      if (selectedEdgeId) {
+        event.preventDefault();
+        deleteSelectedEdge();
+      }
+    };
+
+    window.addEventListener("keydown", handleSelectedItemDelete);
+    return () => window.removeEventListener("keydown", handleSelectedItemDelete);
+  }, [selectedElementId, selectedEdgeId]);
 
   async function loadBoard(boardIdToLoad: string, successMessage = "Loaded board") {
     setSaveStatus("loading");
@@ -220,6 +255,10 @@ export function BoardPage() {
   };
 
   const handleEdgesChange = (changes: EdgeChange[]) => {
+    if (!changes.some((change) => change.type === "remove")) {
+      return;
+    }
+
     const nextEdges = applyEdgeChanges(changes, edges);
     const nextEdgeIds = new Set(nextEdges.map((edge) => edge.id));
 
@@ -228,12 +267,10 @@ export function BoardPage() {
       edges: currentGraph.edges.filter((edge) => nextEdgeIds.has(edge.id)),
     }));
 
-    if (changes.some((change) => change.type === "remove")) {
-      if (selectedEdgeId && !nextEdgeIds.has(selectedEdgeId)) {
-        setSelectedEdgeId(null);
-      }
-      markUnsaved();
+    if (selectedEdgeId && !nextEdgeIds.has(selectedEdgeId)) {
+      setSelectedEdgeId(null);
     }
+    markUnsaved();
   };
 
   const handleConnect = (connection: Connection) => {
@@ -305,13 +342,29 @@ export function BoardPage() {
       return;
     }
 
+    deleteEdge(selectedEdgeId);
+  };
+
+  function selectEdge(edgeId: string) {
+    setSelectedEdgeId(edgeId);
+    setSelectedElementId(null);
+  }
+
+  function selectElement(nodeId: string) {
+    setSelectedElementId(nodeId);
+    setSelectedEdgeId(null);
+  }
+
+  function deleteEdge(edgeId: string) {
     setGraph((currentGraph) => ({
       ...currentGraph,
-      edges: currentGraph.edges.filter((edge) => edge.id !== selectedEdgeId),
+      edges: currentGraph.edges.filter((edge) => edge.id !== edgeId),
     }));
-    setSelectedEdgeId(null);
+    if (selectedEdgeId === edgeId) {
+      setSelectedEdgeId(null);
+    }
     markUnsaved();
-  };
+  }
 
   const handleCleanUp = () => {
     setGraph(cleanupArchitectureLayout(graph));
@@ -422,14 +475,8 @@ export function BoardPage() {
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
-        onEdgeSelect={(edgeId) => {
-          setSelectedEdgeId(edgeId);
-          setSelectedElementId(null);
-        }}
-        onNodeSelect={(nodeId) => {
-          setSelectedElementId(nodeId);
-          setSelectedEdgeId(null);
-        }}
+        onEdgeSelect={selectEdge}
+        onNodeSelect={selectElement}
         onSelectionClear={() => {
           setSelectedElementId(null);
           setSelectedEdgeId(null);
@@ -440,7 +487,6 @@ export function BoardPage() {
         <ContextPanel
           selectedEdge={selectedEdgeDetails}
           selectedElement={selectedElement}
-          onDeleteEdge={deleteSelectedEdge}
           onDeleteElement={deleteSelectedElement}
           onLabelChange={updateSelectedElementLabel}
           onMetadataChange={updateSelectedElementMetadata}
@@ -476,7 +522,11 @@ function createElement(
   };
 }
 
-function toFlowNode(element: BoardElement): Node {
+function toFlowNode(
+  element: BoardElement,
+  selected: boolean,
+  onSelect: (nodeId: string) => void,
+): Node {
   return {
     id: element.id,
     type: "architecture",
@@ -485,19 +535,42 @@ function toFlowNode(element: BoardElement): Node {
       contextBadges: contextBadgesForElement(element),
       elementType: labelForType(element.type),
       label: element.label,
+      onSelect,
     },
+    selected,
     style: {
       width: element.size.width,
     },
   };
 }
 
-function toFlowEdge(edge: { id: string; sourceElementId: string; targetElementId: string }): Edge {
+function toFlowEdge(
+  edge: { id: string; sourceElementId: string; targetElementId: string },
+  selected: boolean,
+  onDelete: (edgeId: string) => void,
+  onSelect: (edgeId: string) => void,
+): Edge {
   return {
     id: edge.id,
+    type: "architecture",
     source: edge.sourceElementId,
     target: edge.targetElementId,
     animated: true,
+    data: {
+      onDelete,
+      onSelect,
+    },
+    interactionWidth: 28,
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: selected ? "#315ddc" : "#94a3b8",
+    },
+    selected,
+    style: {
+      stroke: selected ? "#315ddc" : "#94a3b8",
+      strokeDasharray: selected ? undefined : "6 6",
+      strokeWidth: selected ? 3 : 2,
+    },
   };
 }
 
@@ -602,6 +675,17 @@ function suggestedEdgesForElement(
 function elementLabelForId(graph: BoardGraph, elementId: string): string {
   const element = graph.elements.find((currentElement) => currentElement.id === elementId);
   return element ? element.label : elementId;
+}
+
+function edgeDetailsForGraphEdge(
+  graph: BoardGraph,
+  edge: { id: string; sourceElementId: string; targetElementId: string },
+) {
+  return {
+    id: edge.id,
+    sourceLabel: elementLabelForId(graph, edge.sourceElementId),
+    targetLabel: elementLabelForId(graph, edge.targetElementId),
+  };
 }
 
 function contextBadgesForElement(element: BoardElement): string[] {
