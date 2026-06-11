@@ -20,6 +20,8 @@ import {
 } from "@xyflow/react";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
+import { analyzeLldDesign, type LldSuggestion } from "../services/lldDesignAdvisor";
+
 type UmlVisibility = "+" | "-" | "#" | "~";
 
 type UmlMember = {
@@ -176,6 +178,7 @@ export function LldPage() {
   );
   const [selectedClassId, setSelectedClassId] = useState<string | null>(() => readSelectedClassId());
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<LldSuggestion[]>([]);
 
   const nodes = useMemo(
     () =>
@@ -393,6 +396,18 @@ export function LldPage() {
         </div>
 
         <div className="tool-section">
+          <span className="section-label">Review</span>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => setSuggestions(analyzeLldDesign(classes, relationships))}
+          >
+            Analyze LLD
+          </button>
+          <p className="status-text">Checks responsibilities, contracts, coupling, and UML relation usage.</p>
+        </div>
+
+        <div className="tool-section">
           <span className="section-label">Notation</span>
           <p className="status-text">+ public, - private, # protected, ~ package/internal.</p>
           <p className="status-text">Drag from one class handle to another to create a relationship.</p>
@@ -436,6 +451,7 @@ export function LldPage() {
           onDeleteRelationship={deleteSelectedRelationship}
           onRelationshipChange={updateSelectedRelationship}
         />
+        <LldAnalysisPanel suggestions={suggestions} />
       </aside>
     </main>
   );
@@ -591,6 +607,27 @@ function LldContextPanel({
           Delete UML type
         </button>
       </div>
+    </section>
+  );
+}
+
+function LldAnalysisPanel({ suggestions }: { suggestions: LldSuggestion[] }) {
+  return (
+    <section>
+      <span className="section-label">LLD Analysis</span>
+      {suggestions.length > 0 ? (
+        <div className="suggestions">
+          {suggestions.map((suggestion) => (
+            <article key={suggestion.id} className={`suggestion-card severity-${suggestion.severity}`}>
+              <span>{labelForSeverity(suggestion.severity)}</span>
+              <strong>{suggestion.title}</strong>
+              <p>{suggestion.description}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">Run Analyze LLD to get design feedback for interview practice.</p>
+      )}
     </section>
   );
 }
@@ -852,6 +889,16 @@ function descriptionForRelationshipKind(kind: UmlRelationshipKind): string {
   };
 
   return descriptions[kind];
+}
+
+function labelForSeverity(severity: LldSuggestion["severity"]): string {
+  const labels: Record<LldSuggestion["severity"], string> = {
+    critical: "Critical",
+    info: "Suggestion",
+    warning: "Warning",
+  };
+
+  return labels[severity];
 }
 
 function readLldDraft(): LldDraft {

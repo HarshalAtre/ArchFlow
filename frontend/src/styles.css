@@ -438,6 +438,21 @@ textarea {
   line-height: 1.45;
 }
 
+.severity-warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.severity-critical {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.severity-info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
 .edge-remove-button {
   position: absolute;
   min-height: 30px;
