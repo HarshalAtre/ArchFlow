@@ -15,6 +15,7 @@ import {
   NodeTypes,
   Position,
   ReactFlow,
+  ReactFlowProvider,
   getBezierPath,
 } from "@xyflow/react";
 import { useEffect } from "react";
@@ -79,34 +80,36 @@ export function BoardCanvas({
 
   return (
     <section className="board-canvas">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={(_, node) => onNodeSelect(node.id)}
-        onEdgeClick={(_, edge) => onEdgeSelect(edge.id)}
-        onPaneClick={(event) => {
-          const target = event.target as Element;
+      <ReactFlowProvider>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={(_, node) => onNodeSelect(node.id)}
+          onEdgeClick={(_, edge) => onEdgeSelect(edge.id)}
+          onPaneClick={(event) => {
+            const target = event.target as Element;
 
-          if (
-            target.closest(".react-flow__node, .react-flow__edge, .edge-remove-button") ||
-            nodeIdAtPoint(event.clientX, event.clientY)
-          ) {
-            return;
-          }
+            if (
+              target.closest(".react-flow__node, .react-flow__edge, .edge-remove-button") ||
+              nodeIdAtPoint(event.clientX, event.clientY)
+            ) {
+              return;
+            }
 
-          onSelectionClear();
-        }}
-        edgeTypes={customEdgeTypes}
-        nodeTypes={customNodeTypes}
-        fitView
-      >
-        <Background />
-        <MiniMap />
-        <Controls />
-      </ReactFlow>
+            onSelectionClear();
+          }}
+          edgeTypes={customEdgeTypes}
+          nodeTypes={customNodeTypes}
+          fitView
+        >
+          <Background />
+          <MiniMap />
+          <Controls />
+        </ReactFlow>
+      </ReactFlowProvider>
     </section>
   );
 }
