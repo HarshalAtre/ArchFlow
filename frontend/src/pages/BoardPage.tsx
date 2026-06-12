@@ -12,6 +12,11 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  isEditableHistoryTarget,
+  useUndoRedo,
+  useUndoRedoShortcuts,
+} from "../hooks/useUndoRedo";
 import { ArchitectureAssistPanel } from "../components/board/ArchitectureAssistPanel";
 import { BoardCanvas } from "../components/board/BoardCanvas";
 import { BoardToolbar } from "../components/board/BoardToolbar";
@@ -133,7 +138,17 @@ const recentBoardsStorageKey = "archflow:recent-boards";
 export function BoardPage() {
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState(demoBoardName);
-  const [graph, setGraph] = useState<BoardGraph>(initialGraph);
+  const {
+    beginTransaction,
+    canRedo,
+    canUndo,
+    commitTransaction,
+    redo,
+    resetState: resetGraph,
+    setState: setGraph,
+    state: graph,
+    undo,
+  } = useUndoRedo<BoardGraph>(initialGraph);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [recentBoards, setRecentBoards] = useState<RecentBoard[]>(() => readRecentBoards());
@@ -160,6 +175,8 @@ export function BoardPage() {
   const selectedEdgeDetails = selectedEdge
     ? edgeDetailsForGraphEdge(graph, selectedEdge)
     : undefined;
+
+  useUndoRedoShortcuts(handleUndo, handleRedo);
 
   useEffect(() => {
     const savedBoardId = localStorage.getItem(lastBoardStorageKey);
@@ -206,7 +223,7 @@ export function BoardPage() {
 
       setBoardId(board.id);
       setBoardName(board.name);
-      setGraph({
+      resetGraph({
         elements: board.elements,
         edges: board.edges,
       });
@@ -225,6 +242,10 @@ export function BoardPage() {
   }
 
   const handleNodesChange: OnNodesChange = (changes: NodeChange[]) => {
+    if (!hasUserNodeChange(changes)) {
+      return;
+    }
+
     const nextNodes = applyNodeChanges(changes, nodes);
     const nextNodeIds = new Set(nextNodes.map((node) => node.id));
 
@@ -246,12 +267,10 @@ export function BoardPage() {
       ),
     }));
 
-    if (hasUserNodeChange(changes)) {
-      if (selectedElementId && !nextNodeIds.has(selectedElementId)) {
-        setSelectedElementId(null);
-      }
-      markUnsaved();
+    if (selectedElementId && !nextNodeIds.has(selectedElementId)) {
+      setSelectedElementId(null);
     }
+    markUnsaved();
   };
 
   const handleEdgesChange = (changes: EdgeChange[]) => {
@@ -328,7 +347,7 @@ export function BoardPage() {
   const loadDemoBoard = () => {
     setBoardId(null);
     setBoardName(demoBoardName);
-    setGraph(createDemoGraph());
+    resetGraph(createDemoGraph());
     setSelectedElementId(null);
     setSelectedEdgeId(null);
     setSuggestions([]);
@@ -388,10 +407,6 @@ export function BoardPage() {
 
       setBoardId(savedBoard.id);
       setBoardName(savedBoard.name);
-      setGraph({
-        elements: savedBoard.elements,
-        edges: savedBoard.edges,
-      });
       localStorage.setItem(lastBoardStorageKey, savedBoard.id);
       setRecentBoards(updateRecentBoards(savedBoard));
       setSaveStatus("saved");
@@ -451,6 +466,8 @@ export function BoardPage() {
       <BoardToolbar
         boardId={boardId}
         boardName={boardName}
+        canRedo={canRedo}
+        canUndo={canUndo}
         nodeTypes={addableElementTypes}
         recentBoards={recentBoards}
         saveStatus={saveStatus}
@@ -466,7 +483,9 @@ export function BoardPage() {
         onLoadBoard={(boardIdToLoad) => {
           void loadBoard(boardIdToLoad);
         }}
+        onRedo={handleRedo}
         onSaveBoard={handleSaveBoard}
+        onUndo={handleUndo}
       />
 
       <BoardCanvas
@@ -475,6 +494,8 @@ export function BoardPage() {
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onNodeDragStart={beginTransaction}
+        onNodeDragStop={commitTransaction}
         onEdgeSelect={selectEdge}
         onNodeSelect={selectElement}
         onSelectionClear={() => {
@@ -483,7 +504,19 @@ export function BoardPage() {
         }}
       />
 
-      <aside className="context-panel">
+      <aside
+        className="context-panel"
+        onFocusCapture={(event) => {
+          if (isEditableHistoryTarget(event.target)) {
+            beginTransaction();
+          }
+        }}
+        onBlurCapture={(event) => {
+          if (isEditableHistoryTarget(event.target)) {
+            commitTransaction();
+          }
+        }}
+      >
         <ContextPanel
           selectedEdge={selectedEdgeDetails}
           selectedElement={selectedElement}
@@ -501,6 +534,28 @@ export function BoardPage() {
       setSaveStatus("idle");
       setStatusMessage(boardId ? "Unsaved changes" : "Unsaved board");
     }
+  }
+
+  function handleUndo() {
+    if (!canUndo) {
+      return;
+    }
+
+    undo();
+    setSelectedElementId(null);
+    setSelectedEdgeId(null);
+    markUnsaved();
+  }
+
+  function handleRedo() {
+    if (!canRedo) {
+      return;
+    }
+
+    redo();
+    setSelectedElementId(null);
+    setSelectedEdgeId(null);
+    markUnsaved();
   }
 }
 

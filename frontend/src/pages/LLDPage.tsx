@@ -21,6 +21,12 @@ import {
 } from "@xyflow/react";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
+import { HistoryControls } from "../components/HistoryControls";
+import {
+  isEditableHistoryTarget,
+  useUndoRedo,
+  useUndoRedoShortcuts,
+} from "../hooks/useUndoRedo";
 import { analyzeLLDDesign, type LLDSuggestion } from "../services/lldDesignAdvisor";
 import {
   createLLDBoard,
@@ -88,12 +94,21 @@ const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
 export function LLDPage() {
+  const initialDraft = useMemo(() => readLLDDraft(), []);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState("Order Platform LLD");
-  const [classes, setClasses] = useState<UmlClass[]>(() => readLLDDraft().classes);
-  const [relationships, setRelationships] = useState<UmlRelationship[]>(
-    () => readLLDDraft().relationships,
-  );
+  const {
+    beginTransaction,
+    canRedo,
+    canUndo,
+    commitTransaction,
+    redo,
+    resetState: resetLLDGraph,
+    setState: setLLDGraph,
+    state: lldGraph,
+    undo,
+  } = useUndoRedo<LLDDraft>(initialDraft);
+  const { classes, relationships } = lldGraph;
   const [selectedClassId, setSelectedClassId] = useState<string | null>(() => readSelectedClassId());
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(lldTemplates[0].id);
@@ -153,11 +168,9 @@ export function LLDPage() {
   const selectedTemplate =
     lldTemplates.find((template) => template.id === selectedTemplateId) ?? lldTemplates[0];
 
-  useEffect(() => {
-    const savedDraft = readLLDDraft();
-    setClasses(savedDraft.classes);
-    setRelationships(savedDraft.relationships);
+  useUndoRedoShortcuts(handleUndo, handleRedo);
 
+  useEffect(() => {
     void refreshRecentBoards();
 
     const lastBoardId = localStorage.getItem(lastLLDBoardStorageKey);
@@ -193,11 +206,15 @@ export function LLDPage() {
   }, [classes, selectedClassId]);
 
   const handleNodesChange = (changes: NodeChange[]) => {
+    if (!changes.some((change) => change.type === "position" || change.type === "remove")) {
+      return;
+    }
+
     const nextNodes = applyNodeChanges(changes, nodes);
     const nextNodeIds = new Set(nextNodes.map((node) => node.id));
 
-    setClasses((currentClasses) =>
-      currentClasses
+    setLLDGraph((currentGraph) => ({
+      classes: currentGraph.classes
         .filter((umlClass) => nextNodeIds.has(umlClass.id))
         .map((umlClass) => {
           const matchingNode = nextNodes.find((node) => node.id === umlClass.id);
@@ -208,14 +225,11 @@ export function LLDPage() {
               }
             : umlClass;
         }),
-    );
-
-    setRelationships((currentRelationships) =>
-      currentRelationships.filter(
+      relationships: currentGraph.relationships.filter(
         (relationship) =>
           nextNodeIds.has(relationship.sourceClassId) && nextNodeIds.has(relationship.targetClassId),
       ),
-    );
+    }));
 
     if (changes.some((change) => change.type === "position" || change.type === "remove")) {
       markUnsaved();
@@ -239,7 +253,10 @@ export function LLDPage() {
       targetMultiplicity: "",
     };
 
-    setRelationships((currentRelationships) => [...currentRelationships, nextRelationship]);
+    setLLDGraph((currentGraph) => ({
+      ...currentGraph,
+      relationships: [...currentGraph.relationships, nextRelationship],
+    }));
     setSelectedClassId(null);
     setSelectedRelationshipId(nextRelationship.id);
     markUnsaved();
@@ -256,7 +273,10 @@ export function LLDPage() {
       responsibility: "",
     };
 
-    setClasses((currentClasses) => [...currentClasses, nextClass]);
+    setLLDGraph((currentGraph) => ({
+      ...currentGraph,
+      classes: [...currentGraph.classes, nextClass],
+    }));
     setSelectedClassId(nextClass.id);
     setSelectedRelationshipId(null);
     markUnsaved();
@@ -267,11 +287,12 @@ export function LLDPage() {
       return;
     }
 
-    setClasses((currentClasses) =>
-      currentClasses.map((umlClass) =>
+    setLLDGraph((currentGraph) => ({
+      ...currentGraph,
+      classes: currentGraph.classes.map((umlClass) =>
         umlClass.id === selectedClassId ? { ...umlClass, ...updates } : umlClass,
       ),
-    );
+    }));
     markUnsaved();
   };
 
@@ -280,13 +301,13 @@ export function LLDPage() {
       return;
     }
 
-    setClasses((currentClasses) => currentClasses.filter((umlClass) => umlClass.id !== selectedClassId));
-    setRelationships((currentRelationships) =>
-      currentRelationships.filter(
+    setLLDGraph((currentGraph) => ({
+      classes: currentGraph.classes.filter((umlClass) => umlClass.id !== selectedClassId),
+      relationships: currentGraph.relationships.filter(
         (relationship) =>
           relationship.sourceClassId !== selectedClassId && relationship.targetClassId !== selectedClassId,
       ),
-    );
+    }));
     setSelectedClassId(null);
     markUnsaved();
   };
@@ -296,11 +317,12 @@ export function LLDPage() {
       return;
     }
 
-    setRelationships((currentRelationships) =>
-      currentRelationships.map((relationship) =>
+    setLLDGraph((currentGraph) => ({
+      ...currentGraph,
+      relationships: currentGraph.relationships.map((relationship) =>
         relationship.id === selectedRelationshipId ? { ...relationship, ...updates } : relationship,
       ),
-    );
+    }));
     markUnsaved();
   };
 
@@ -309,9 +331,12 @@ export function LLDPage() {
       return;
     }
 
-    setRelationships((currentRelationships) =>
-      currentRelationships.filter((relationship) => relationship.id !== selectedRelationshipId),
-    );
+    setLLDGraph((currentGraph) => ({
+      ...currentGraph,
+      relationships: currentGraph.relationships.filter(
+        (relationship) => relationship.id !== selectedRelationshipId,
+      ),
+    }));
     setSelectedRelationshipId(null);
     markUnsaved();
   };
@@ -319,8 +344,7 @@ export function LLDPage() {
   const loadSelectedTemplate = () => {
     const nextDraft = cloneLLDDraft(selectedTemplate.draft);
 
-    setClasses(nextDraft.classes);
-    setRelationships(nextDraft.relationships);
+    resetLLDGraph(nextDraft);
     setSelectedClassId(nextDraft.classes.at(0)?.id ?? null);
     setSelectedRelationshipId(null);
     setSuggestions([]);
@@ -374,8 +398,10 @@ export function LLDPage() {
   function applySavedBoard(board: LLDBoard) {
     setBoardId(board.id);
     setBoardName(board.name);
-    setClasses(board.classes);
-    setRelationships(board.relationships);
+    resetLLDGraph({
+      classes: board.classes,
+      relationships: board.relationships,
+    });
     setSelectedClassId(board.classes.at(0)?.id ?? null);
     setSelectedRelationshipId(null);
     setSuggestions([]);
@@ -400,6 +426,28 @@ export function LLDPage() {
       setSaveStatus("idle");
       setStatusMessage(boardId ? "Unsaved changes" : "Unsaved LLD board");
     }
+  }
+
+  function handleUndo() {
+    if (!canUndo) {
+      return;
+    }
+
+    undo();
+    setSelectedClassId(null);
+    setSelectedRelationshipId(null);
+    markUnsaved();
+  }
+
+  function handleRedo() {
+    if (!canRedo) {
+      return;
+    }
+
+    redo();
+    setSelectedClassId(null);
+    setSelectedRelationshipId(null);
+    markUnsaved();
   }
 
   return (
@@ -500,6 +548,12 @@ export function LLDPage() {
 
         <div className="tool-section">
           <span className="section-label">Review</span>
+          <HistoryControls
+            canRedo={canRedo}
+            canUndo={canUndo}
+            onRedo={handleRedo}
+            onUndo={handleUndo}
+          />
           <button
             type="button"
             className="primary-button"
@@ -527,6 +581,8 @@ export function LLDPage() {
             nodeTypes={umlNodeTypes}
             connectionMode={ConnectionMode.Loose}
             onConnect={handleConnect}
+            onNodeDragStart={beginTransaction}
+            onNodeDragStop={commitTransaction}
             onNodesChange={handleNodesChange}
             onEdgeClick={(_, edge) => selectRelationship(edge.id)}
             onNodeClick={(_, node) => {
@@ -546,7 +602,19 @@ export function LLDPage() {
         </ReactFlowProvider>
       </section>
 
-      <aside className="context-panel">
+      <aside
+        className="context-panel"
+        onFocusCapture={(event) => {
+          if (isEditableHistoryTarget(event.target)) {
+            beginTransaction();
+          }
+        }}
+        onBlurCapture={(event) => {
+          if (isEditableHistoryTarget(event.target)) {
+            commitTransaction();
+          }
+        }}
+      >
         <LLDContextPanel
           selectedClass={selectedClass}
           selectedRelationship={selectedRelationship}

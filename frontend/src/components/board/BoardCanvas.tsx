@@ -49,6 +49,8 @@ type BoardCanvasProps = {
   onEdgeSelect: (edgeId: string) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onNodeSelect: (nodeId: string) => void;
+  onNodeDragStart: () => void;
+  onNodeDragStop: () => void;
   onNodesChange: (changes: NodeChange[]) => void;
   onSelectionClear: () => void;
 };
@@ -59,6 +61,8 @@ export function BoardCanvas({
   onConnect,
   onEdgeSelect,
   onEdgesChange,
+  onNodeDragStart,
+  onNodeDragStop,
   onNodeSelect,
   onNodesChange,
   onSelectionClear,
@@ -87,6 +91,8 @@ export function BoardCanvas({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
           onNodeClick={(_, node) => onNodeSelect(node.id)}
           onEdgeClick={(_, edge) => onEdgeSelect(edge.id)}
           onPaneClick={(event) => {

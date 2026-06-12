@@ -1,5 +1,6 @@
 import type { BoardElementType, RecentBoard } from "../../types/board";
 
+import { HistoryControls } from "../HistoryControls";
 import { labelForType } from "./boardLabels";
 
 type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
@@ -7,6 +8,8 @@ type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
 type BoardToolbarProps = {
   boardId: string | null;
   boardName: string;
+  canRedo: boolean;
+  canUndo: boolean;
   nodeTypes: BoardElementType[];
   recentBoards: RecentBoard[];
   saveStatus: SaveStatus;
@@ -17,12 +20,16 @@ type BoardToolbarProps = {
   onCleanUp: () => void;
   onLoadDemoBoard: () => void;
   onLoadBoard: (boardId: string) => void;
+  onRedo: () => void;
   onSaveBoard: () => void;
+  onUndo: () => void;
 };
 
 export function BoardToolbar({
   boardId,
   boardName,
+  canRedo,
+  canUndo,
   nodeTypes,
   recentBoards,
   saveStatus,
@@ -33,7 +40,9 @@ export function BoardToolbar({
   onCleanUp,
   onLoadDemoBoard,
   onLoadBoard,
+  onRedo,
   onSaveBoard,
+  onUndo,
 }: BoardToolbarProps) {
   return (
     <aside className="toolbar">
@@ -99,6 +108,12 @@ export function BoardToolbar({
 
       <div className="tool-section">
         <span className="section-label">Actions</span>
+        <HistoryControls
+          canRedo={canRedo}
+          canUndo={canUndo}
+          onRedo={onRedo}
+          onUndo={onUndo}
+        />
         <button type="button" onClick={onCleanUp}>
           Clean Up
         </button>
