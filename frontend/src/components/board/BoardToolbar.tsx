@@ -39,7 +39,7 @@ export function BoardToolbar({
     <aside className="toolbar">
       <div>
         <p className="eyebrow">Architecture Board</p>
-        <h1>Visual System Designer</h1>
+        <h1>ArchFlow</h1>
       </div>
 
       {recentBoards.length > 0 ? (
