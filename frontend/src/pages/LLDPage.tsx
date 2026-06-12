@@ -15,19 +15,28 @@ import {
   NodeTypes,
   Position,
   ReactFlow,
+  ReactFlowInstance,
   ReactFlowProvider,
   applyNodeChanges,
   getBezierPath,
 } from "@xyflow/react";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { HistoryControls } from "../components/HistoryControls";
+import { TransferControls } from "../components/TransferControls";
 import {
   isEditableHistoryTarget,
   useUndoRedo,
   useUndoRedoShortcuts,
 } from "../hooks/useUndoRedo";
 import { analyzeLLDDesign, type LLDSuggestion } from "../services/lldDesignAdvisor";
+import {
+  createLLDTransferFile,
+  downloadTransferFile,
+  exportDiagramAsPdf,
+  exportDiagramAsPng,
+  readTransferFile,
+} from "../services/boardTransfer";
 import {
   createLLDBoard,
   getLLDBoard,
@@ -94,6 +103,8 @@ const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
 export function LLDPage() {
+  const canvasRef = useRef<HTMLElement>(null);
+  const flowRef = useRef<ReactFlowInstance<UmlNode, UmlRelationshipEdge> | null>(null);
   const initialDraft = useMemo(() => readLLDDraft(), []);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState("Order Platform LLD");
@@ -118,6 +129,7 @@ export function LLDPage() {
     "idle" | "loading" | "saving" | "saved" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved LLD board");
+  const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
 
   const nodes = useMemo(
     () =>
@@ -450,6 +462,58 @@ export function LLDPage() {
     markUnsaved();
   }
 
+  function handleExportJson() {
+    downloadTransferFile(createLLDTransferFile(boardName, lldGraph));
+  }
+
+  async function handleImportJson(file: File) {
+    try {
+      const transferFile = await readTransferFile(file);
+
+      if (transferFile.mode !== "lld") {
+        throw new Error("This file contains an HLD board. Import it from the HLD tab.");
+      }
+
+      setBoardId(null);
+      setBoardName(transferFile.name);
+      resetLLDGraph(transferFile.graph);
+      setSelectedClassId(null);
+      setSelectedRelationshipId(null);
+      setSuggestions([]);
+      localStorage.removeItem(lastLLDBoardStorageKey);
+      setSaveStatus("idle");
+      setStatusMessage("Imported LLD board - save to store it");
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Import failed");
+    }
+  }
+
+  async function handleVisualExport(format: "pdf" | "png") {
+    if (!canvasRef.current || !flowRef.current) {
+      setSaveStatus("error");
+      setStatusMessage("The diagram canvas is not ready to export.");
+      return;
+    }
+
+    setBusyExport(format);
+
+    try {
+      const bounds = flowRef.current.getNodesBounds(flowRef.current.getNodes());
+
+      if (format === "png") {
+        await exportDiagramAsPng(canvasRef.current, boardName, bounds);
+      } else {
+        await exportDiagramAsPdf(canvasRef.current, boardName, bounds);
+      }
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setBusyExport(null);
+    }
+  }
+
   return (
     <main className="app-shell lld-shell">
       <aside className="toolbar">
@@ -565,6 +629,17 @@ export function LLDPage() {
         </div>
 
         <div className="tool-section">
+          <span className="section-label">Import / Export</span>
+          <TransferControls
+            busyAction={busyExport}
+            onExportJson={handleExportJson}
+            onExportPdf={() => void handleVisualExport("pdf")}
+            onExportPng={() => void handleVisualExport("png")}
+            onImportJson={(file) => void handleImportJson(file)}
+          />
+        </div>
+
+        <div className="tool-section">
           <span className="section-label">Notation</span>
           <p className="status-text">+ public, - private, # protected, ~ package/internal.</p>
           <p className="status-text">Drag from one class handle to another to create a relationship.</p>
@@ -572,7 +647,7 @@ export function LLDPage() {
         </div>
       </aside>
 
-      <section className="board-canvas">
+      <section ref={canvasRef} className="board-canvas">
         <ReactFlowProvider>
           <ReactFlow
             nodes={nodes}
@@ -583,6 +658,9 @@ export function LLDPage() {
             onConnect={handleConnect}
             onNodeDragStart={beginTransaction}
             onNodeDragStop={commitTransaction}
+            onInit={(instance) => {
+              flowRef.current = instance;
+            }}
             onNodesChange={handleNodesChange}
             onEdgeClick={(_, edge) => selectRelationship(edge.id)}
             onNodeClick={(_, node) => {

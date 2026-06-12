@@ -1,6 +1,7 @@
 import type { BoardElementType, RecentBoard } from "../../types/board";
 
 import { HistoryControls } from "../HistoryControls";
+import { TransferControls } from "../TransferControls";
 import { labelForType } from "./boardLabels";
 
 type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
@@ -8,6 +9,7 @@ type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
 type BoardToolbarProps = {
   boardId: string | null;
   boardName: string;
+  busyExport: "pdf" | "png" | null;
   canRedo: boolean;
   canUndo: boolean;
   nodeTypes: BoardElementType[];
@@ -18,6 +20,10 @@ type BoardToolbarProps = {
   onAnalyze: () => void;
   onBoardNameChange: (name: string) => void;
   onCleanUp: () => void;
+  onExportJson: () => void;
+  onExportPdf: () => void;
+  onExportPng: () => void;
+  onImportJson: (file: File) => void;
   onLoadDemoBoard: () => void;
   onLoadBoard: (boardId: string) => void;
   onRedo: () => void;
@@ -28,6 +34,7 @@ type BoardToolbarProps = {
 export function BoardToolbar({
   boardId,
   boardName,
+  busyExport,
   canRedo,
   canUndo,
   nodeTypes,
@@ -38,6 +45,10 @@ export function BoardToolbar({
   onAnalyze,
   onBoardNameChange,
   onCleanUp,
+  onExportJson,
+  onExportPdf,
+  onExportPng,
+  onImportJson,
   onLoadDemoBoard,
   onLoadBoard,
   onRedo,
@@ -120,6 +131,17 @@ export function BoardToolbar({
         <button type="button" onClick={onAnalyze}>
           Analyze
         </button>
+      </div>
+
+      <div className="tool-section">
+        <span className="section-label">Import / Export</span>
+        <TransferControls
+          busyAction={busyExport}
+          onExportJson={onExportJson}
+          onExportPdf={onExportPdf}
+          onExportPng={onExportPng}
+          onImportJson={onImportJson}
+        />
       </div>
     </aside>
   );

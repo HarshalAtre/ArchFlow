@@ -7,10 +7,11 @@ import {
   Node,
   NodeChange,
   OnNodesChange,
+  ReactFlowInstance,
   applyEdgeChanges,
   applyNodeChanges,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   isEditableHistoryTarget,
@@ -23,6 +24,13 @@ import { BoardToolbar } from "../components/board/BoardToolbar";
 import { ContextPanel } from "../components/board/ContextPanel";
 import { labelForType } from "../components/board/boardLabels";
 import { analyzeArchitecture, cleanupArchitectureLayout } from "../services/architectureEngine";
+import {
+  createHLDTransferFile,
+  downloadTransferFile,
+  exportDiagramAsPdf,
+  exportDiagramAsPng,
+  readTransferFile,
+} from "../services/boardTransfer";
 import { createBoard, getBoard, updateBoard } from "../services/boardApi";
 import type {
   ArchitectureSuggestion,
@@ -136,6 +144,8 @@ const lastBoardStorageKey = "archflow:last-board-id";
 const recentBoardsStorageKey = "archflow:recent-boards";
 
 export function BoardPage() {
+  const canvasRef = useRef<HTMLElement>(null);
+  const flowRef = useRef<ReactFlowInstance | null>(null);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState(demoBoardName);
   const {
@@ -155,6 +165,7 @@ export function BoardPage() {
   const [suggestions, setSuggestions] = useState<ArchitectureSuggestion[]>([]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved board");
+  const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
 
   const nodes = useMemo(
     () =>
@@ -461,11 +472,64 @@ export function BoardPage() {
     markUnsaved();
   };
 
+  const handleExportJson = () => {
+    downloadTransferFile(createHLDTransferFile(boardName, graph));
+  };
+
+  const handleImportJson = async (file: File) => {
+    try {
+      const transferFile = await readTransferFile(file);
+
+      if (transferFile.mode !== "hld") {
+        throw new Error("This file contains an LLD board. Import it from the LLD tab.");
+      }
+
+      setBoardId(null);
+      setBoardName(transferFile.name);
+      resetGraph(transferFile.graph);
+      setSelectedElementId(null);
+      setSelectedEdgeId(null);
+      setSuggestions([]);
+      localStorage.removeItem(lastBoardStorageKey);
+      setSaveStatus("idle");
+      setStatusMessage("Imported board - save to store it");
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Import failed");
+    }
+  };
+
+  const handleVisualExport = async (format: "pdf" | "png") => {
+    if (!canvasRef.current || !flowRef.current) {
+      setSaveStatus("error");
+      setStatusMessage("The diagram canvas is not ready to export.");
+      return;
+    }
+
+    setBusyExport(format);
+
+    try {
+      const bounds = flowRef.current.getNodesBounds(flowRef.current.getNodes());
+
+      if (format === "png") {
+        await exportDiagramAsPng(canvasRef.current, boardName, bounds);
+      } else {
+        await exportDiagramAsPdf(canvasRef.current, boardName, bounds);
+      }
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setBusyExport(null);
+    }
+  };
+
   return (
     <main className="app-shell">
       <BoardToolbar
         boardId={boardId}
         boardName={boardName}
+        busyExport={busyExport}
         canRedo={canRedo}
         canUndo={canUndo}
         nodeTypes={addableElementTypes}
@@ -479,6 +543,10 @@ export function BoardPage() {
           markUnsaved();
         }}
         onCleanUp={handleCleanUp}
+        onExportJson={handleExportJson}
+        onExportPdf={() => void handleVisualExport("pdf")}
+        onExportPng={() => void handleVisualExport("png")}
+        onImportJson={(file) => void handleImportJson(file)}
         onLoadDemoBoard={loadDemoBoard}
         onLoadBoard={(boardIdToLoad) => {
           void loadBoard(boardIdToLoad);
@@ -489,6 +557,7 @@ export function BoardPage() {
       />
 
       <BoardCanvas
+        canvasRef={canvasRef}
         nodes={nodes}
         edges={edges}
         onNodesChange={handleNodesChange}
@@ -496,6 +565,9 @@ export function BoardPage() {
         onConnect={handleConnect}
         onNodeDragStart={beginTransaction}
         onNodeDragStop={commitTransaction}
+        onReady={(instance) => {
+          flowRef.current = instance;
+        }}
         onEdgeSelect={selectEdge}
         onNodeSelect={selectElement}
         onSelectionClear={() => {

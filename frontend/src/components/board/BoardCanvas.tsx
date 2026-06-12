@@ -15,10 +15,11 @@ import {
   NodeTypes,
   Position,
   ReactFlow,
+  ReactFlowInstance,
   ReactFlowProvider,
   getBezierPath,
 } from "@xyflow/react";
-import { useEffect } from "react";
+import { RefObject, useEffect } from "react";
 
 type ArchitectureNodeData = {
   contextBadges: string[];
@@ -43,6 +44,7 @@ const customEdgeTypes: EdgeTypes = {
 };
 
 type BoardCanvasProps = {
+  canvasRef: RefObject<HTMLElement>;
   edges: Edge[];
   nodes: Node[];
   onConnect: (connection: Connection) => void;
@@ -52,10 +54,12 @@ type BoardCanvasProps = {
   onNodeDragStart: () => void;
   onNodeDragStop: () => void;
   onNodesChange: (changes: NodeChange[]) => void;
+  onReady: (instance: ReactFlowInstance) => void;
   onSelectionClear: () => void;
 };
 
 export function BoardCanvas({
+  canvasRef,
   edges,
   nodes,
   onConnect,
@@ -65,6 +69,7 @@ export function BoardCanvas({
   onNodeDragStop,
   onNodeSelect,
   onNodesChange,
+  onReady,
   onSelectionClear,
 }: BoardCanvasProps) {
   useEffect(() => {
@@ -83,7 +88,7 @@ export function BoardCanvas({
   }, [onNodeSelect]);
 
   return (
-    <section className="board-canvas">
+    <section ref={canvasRef} className="board-canvas">
       <ReactFlowProvider>
         <ReactFlow
           nodes={nodes}
@@ -93,6 +98,7 @@ export function BoardCanvas({
           onConnect={onConnect}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
+          onInit={onReady}
           onNodeClick={(_, node) => onNodeSelect(node.id)}
           onEdgeClick={(_, edge) => onEdgeSelect(edge.id)}
           onPaneClick={(event) => {
