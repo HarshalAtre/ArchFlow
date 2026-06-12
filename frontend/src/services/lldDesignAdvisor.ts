@@ -1,3 +1,5 @@
+import type { UmlClass, UmlRelationship } from "../types/lld";
+
 export type LldSuggestionSeverity = "info" | "warning" | "critical";
 
 export type LldSuggestion = {
@@ -7,30 +9,9 @@ export type LldSuggestion = {
   severity: LldSuggestionSeverity;
 };
 
-type LldDesignClass = {
-  id: string;
-  kind: "class" | "abstract" | "interface" | "enum";
-  name: string;
-  attributes: Array<{ signature: string }>;
-  methods: Array<{ signature: string }>;
-  responsibility: string;
-};
-
-type LldDesignRelationship = {
-  sourceClassId: string;
-  targetClassId: string;
-  kind:
-    | "association"
-    | "dependency"
-    | "inheritance"
-    | "implementation"
-    | "aggregation"
-    | "composition";
-};
-
 export function analyzeLldDesign(
-  classes: LldDesignClass[],
-  relationships: LldDesignRelationship[],
+  classes: UmlClass[],
+  relationships: UmlRelationship[],
 ): LldSuggestion[] {
   const suggestions: LldSuggestion[] = [];
   const classById = new Map(classes.map((umlClass) => [umlClass.id, umlClass]));

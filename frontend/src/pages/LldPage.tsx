@@ -21,47 +21,20 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { analyzeLldDesign, type LldSuggestion } from "../services/lldDesignAdvisor";
-
-type UmlVisibility = "+" | "-" | "#" | "~";
-
-type UmlMember = {
-  id: string;
-  signature: string;
-  visibility: UmlVisibility;
-};
-
-type UmlClassKind = "class" | "abstract" | "interface" | "enum";
-
-type UmlClass = {
-  id: string;
-  kind: UmlClassKind;
-  name: string;
-  position: {
-    x: number;
-    y: number;
-  };
-  attributes: UmlMember[];
-  methods: UmlMember[];
-  responsibility: string;
-};
-
-type UmlRelationshipKind =
-  | "association"
-  | "dependency"
-  | "inheritance"
-  | "implementation"
-  | "aggregation"
-  | "composition";
-
-type UmlRelationship = {
-  id: string;
-  sourceClassId: string;
-  targetClassId: string;
-  kind: UmlRelationshipKind;
-  label: string;
-  sourceMultiplicity: string;
-  targetMultiplicity: string;
-};
+import {
+  cloneLldDraft,
+  getDefaultLldDraft,
+  lldTemplates,
+} from "../services/lldTemplates";
+import type {
+  LldDraft,
+  UmlClass,
+  UmlClassKind,
+  UmlMember,
+  UmlRelationship,
+  UmlRelationshipKind,
+  UmlVisibility,
+} from "../types/lld";
 
 type UmlNodeData = {
   attributes: UmlMember[];
@@ -81,11 +54,6 @@ type UmlRelationshipEdgeData = {
 type UmlNode = Node<UmlNodeData, "uml-class">;
 type UmlRelationshipEdge = Edge<UmlRelationshipEdgeData, "uml-relationship">;
 
-type LldDraft = {
-  classes: UmlClass[];
-  relationships: UmlRelationship[];
-};
-
 const umlNodeTypes: NodeTypes = {
   "uml-class": UmlClassNode,
 };
@@ -93,70 +61,6 @@ const umlNodeTypes: NodeTypes = {
 const umlEdgeTypes: EdgeTypes = {
   "uml-relationship": UmlRelationshipEdge,
 };
-
-const initialClasses: UmlClass[] = [
-  {
-    id: "class-order-service",
-    kind: "class",
-    name: "OrderService",
-    position: { x: 120, y: 120 },
-    attributes: [
-      createMember("-", "orderRepository: OrderRepository"),
-      createMember("-", "paymentGateway: PaymentGateway"),
-    ],
-    methods: [
-      createMember("+", "createOrder(request: OrderRequest): Order"),
-      createMember("+", "cancelOrder(orderId: string): void"),
-    ],
-    responsibility: "Coordinates order lifecycle operations and delegates persistence/payment work.",
-  },
-  {
-    id: "class-order",
-    kind: "class",
-    name: "Order",
-    position: { x: 520, y: 120 },
-    attributes: [
-      createMember("-", "id: string"),
-      createMember("-", "status: OrderStatus"),
-      createMember("-", "items: OrderItem[]"),
-    ],
-    methods: [
-      createMember("+", "addItem(item: OrderItem): void"),
-      createMember("+", "markPaid(): void"),
-    ],
-    responsibility: "Domain entity that owns order state transitions.",
-  },
-  {
-    id: "interface-payment-gateway",
-    kind: "interface",
-    name: "PaymentGateway",
-    position: { x: 900, y: 140 },
-    attributes: [],
-    methods: [createMember("+", "charge(amount: Money): PaymentResult")],
-    responsibility: "Boundary for payment provider integrations.",
-  },
-];
-
-const initialRelationships: UmlRelationship[] = [
-  {
-    id: "relationship-service-order",
-    sourceClassId: "class-order-service",
-    targetClassId: "class-order",
-    kind: "association",
-    label: "creates",
-    sourceMultiplicity: "1",
-    targetMultiplicity: "*",
-  },
-  {
-    id: "relationship-service-payment",
-    sourceClassId: "class-order-service",
-    targetClassId: "interface-payment-gateway",
-    kind: "dependency",
-    label: "uses",
-    sourceMultiplicity: "1",
-    targetMultiplicity: "1",
-  },
-];
 
 const classKinds: UmlClassKind[] = ["class", "abstract", "interface", "enum"];
 const lldDraftStorageKey = "archflow:lld-draft";
@@ -178,6 +82,7 @@ export function LldPage() {
   );
   const [selectedClassId, setSelectedClassId] = useState<string | null>(() => readSelectedClassId());
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(lldTemplates[0].id);
   const [suggestions, setSuggestions] = useState<LldSuggestion[]>([]);
 
   const nodes = useMemo(
@@ -220,6 +125,8 @@ export function LldPage() {
   const selectedRelationship = relationships.find(
     (relationship) => relationship.id === selectedRelationshipId,
   );
+  const selectedTemplate =
+    lldTemplates.find((template) => template.id === selectedTemplateId) ?? lldTemplates[0];
 
   useEffect(() => {
     const savedDraft = readLldDraft();
@@ -364,6 +271,16 @@ export function LldPage() {
     setSelectedRelationshipId(null);
   };
 
+  const loadSelectedTemplate = () => {
+    const nextDraft = cloneLldDraft(selectedTemplate.draft);
+
+    setClasses(nextDraft.classes);
+    setRelationships(nextDraft.relationships);
+    setSelectedClassId(nextDraft.classes.at(0)?.id ?? null);
+    setSelectedRelationshipId(null);
+    setSuggestions([]);
+  };
+
   function selectRelationship(relationshipId: string) {
     setSelectedRelationshipId(relationshipId);
     setSelectedClassId(null);
@@ -375,6 +292,26 @@ export function LldPage() {
         <div>
           <p className="eyebrow">LLD Practice</p>
           <h1>UML Class Designer</h1>
+        </div>
+
+        <div className="tool-section">
+          <span className="section-label">Practice Template</span>
+          <select
+            aria-label="LLD practice template"
+            className="text-input"
+            value={selectedTemplateId}
+            onChange={(event) => setSelectedTemplateId(event.target.value)}
+          >
+            {lldTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+          <p className="status-text">{selectedTemplate.description}</p>
+          <button type="button" onClick={loadSelectedTemplate}>
+            Load Template
+          </button>
         </div>
 
         <div className="tool-section">
@@ -905,10 +842,7 @@ function readLldDraft(): LldDraft {
   const storedValue = localStorage.getItem(lldDraftStorageKey);
 
   if (!storedValue) {
-    return {
-      classes: initialClasses,
-      relationships: initialRelationships,
-    };
+    return getDefaultLldDraft();
   }
 
   try {
@@ -925,15 +859,9 @@ function readLldDraft(): LldDraft {
       return parsedValue;
     }
 
-    return {
-      classes: initialClasses,
-      relationships: initialRelationships,
-    };
+    return getDefaultLldDraft();
   } catch {
-    return {
-      classes: initialClasses,
-      relationships: initialRelationships,
-    };
+    return getDefaultLldDraft();
   }
 }
 
