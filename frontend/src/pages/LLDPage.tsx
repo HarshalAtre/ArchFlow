@@ -22,6 +22,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { useAuth } from "../auth/AuthContext";
 import { HistoryControls } from "../components/HistoryControls";
 import { TransferControls } from "../components/TransferControls";
 import {
@@ -111,6 +112,7 @@ const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
 export function LLDPage() {
+  const { requestAuth, status: authStatus, user } = useAuth();
   const canvasRef = useRef<HTMLElement>(null);
   const flowRef = useRef<ReactFlowInstance<UmlNode, UmlRelationshipEdge> | null>(null);
   const initialDraft = useMemo(() => readLLDDraft(), []);
@@ -196,14 +198,25 @@ export function LLDPage() {
   useUndoRedoShortcuts(handleUndo, handleRedo);
 
   useEffect(() => {
-    void refreshRecentBoards();
+    if (authStatus === "loading") {
+      return;
+    }
 
-    const lastBoardId = localStorage.getItem(lastLLDBoardStorageKey);
+    if (!user) {
+      setRecentBoards([]);
+      setBoardId(null);
+      setSaveStatus("idle");
+      setStatusMessage("Unsaved LLD board");
+      return;
+    }
+
+    void refreshRecentBoards();
+    const lastBoardId = localStorage.getItem(lastLLDBoardKeyFor(user.id));
 
     if (lastBoardId) {
       void loadBoard(lastBoardId, "Loaded last saved LLD board");
     }
-  }, []);
+  }, [authStatus, user?.id]);
 
   useLayoutEffect(() => {
     localStorage.setItem(
@@ -378,12 +391,19 @@ export function LLDPage() {
     setAnalysisError("");
     setBoardId(null);
     setBoardName(`${selectedTemplate.name} LLD`);
-    localStorage.removeItem(lastLLDBoardStorageKey);
+    if (user) {
+      localStorage.removeItem(lastLLDBoardKeyFor(user.id));
+    }
     setSaveStatus("idle");
     setStatusMessage("Unsaved template");
   };
 
   const handleSaveBoard = async () => {
+    if (!user) {
+      requestAuth("Sign in to save this LLD board to your account.");
+      return;
+    }
+
     setSaveStatus("saving");
     setStatusMessage("Saving...");
 
@@ -417,7 +437,9 @@ export function LLDPage() {
       setSaveStatus("saved");
       setStatusMessage(successMessage);
     } catch (error) {
-      localStorage.removeItem(lastLLDBoardStorageKey);
+      if (user) {
+        localStorage.removeItem(lastLLDBoardKeyFor(user.id));
+      }
       setSaveStatus("error");
       setStatusMessage(error instanceof Error ? error.message : "Could not load LLD board");
     }
@@ -435,10 +457,17 @@ export function LLDPage() {
     setSuggestions([]);
     setAnalysisSource(null);
     setAnalysisError("");
-    localStorage.setItem(lastLLDBoardStorageKey, board.id);
+    if (user) {
+      localStorage.setItem(lastLLDBoardKeyFor(user.id), board.id);
+    }
   }
 
   async function refreshRecentBoards() {
+    if (!user) {
+      setRecentBoards([]);
+      return;
+    }
+
     try {
       setRecentBoards(await listRecentLLDBoards());
     } catch {
@@ -500,7 +529,9 @@ export function LLDPage() {
       setSuggestions([]);
       setAnalysisSource(null);
       setAnalysisError("");
-      localStorage.removeItem(lastLLDBoardStorageKey);
+      if (user) {
+        localStorage.removeItem(lastLLDBoardKeyFor(user.id));
+      }
       setSaveStatus("idle");
       setStatusMessage("Imported LLD board - save to store it");
     } catch (error) {
@@ -1529,6 +1560,10 @@ function isUmlHandleId(value: unknown): value is UmlHandleId {
 
 function isUmlVisibility(value: unknown): value is UmlVisibility {
   return typeof value === "string" && visibilities.includes(value as UmlVisibility);
+}
+
+function lastLLDBoardKeyFor(userId: string): string {
+  return `${lastLLDBoardStorageKey}:${userId}`;
 }
 
 function handlesForRelationship(

@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useAuth } from "../auth/AuthContext";
 import {
   isEditableHistoryTarget,
   useUndoRedo,
@@ -36,9 +37,13 @@ import {
   exportDiagramAsPng,
   readTransferFile,
 } from "../services/boardTransfer";
-import { createBoard, getBoard, updateBoard } from "../services/boardApi";
+import {
+  createBoard,
+  getBoard,
+  listRecentBoards,
+  updateBoard,
+} from "../services/boardApi";
 import type {
-  Board,
   BoardEdge,
   BoardElement,
   BoardElementMetadata,
@@ -149,9 +154,9 @@ function createDemoGraph(): BoardGraph {
 }
 
 const lastBoardStorageKey = "archflow:last-board-id";
-const recentBoardsStorageKey = "archflow:recent-boards";
 
 export function BoardPage() {
+  const { requestAuth, status: authStatus, user } = useAuth();
   const canvasRef = useRef<HTMLElement>(null);
   const flowRef = useRef<ReactFlowInstance | null>(null);
   const [boardId, setBoardId] = useState<string | null>(null);
@@ -169,7 +174,7 @@ export function BoardPage() {
   } = useUndoRedo<BoardGraph>(initialGraph);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [recentBoards, setRecentBoards] = useState<RecentBoard[]>(() => readRecentBoards());
+  const [recentBoards, setRecentBoards] = useState<RecentBoard[]>([]);
   const [suggestions, setSuggestions] = useState<HLDAnalysisSuggestion[]>([]);
   const [analysisSource, setAnalysisSource] = useState<AnalysisSource | null>(null);
   const [analysisError, setAnalysisError] = useState("");
@@ -207,14 +212,27 @@ export function BoardPage() {
   useUndoRedoShortcuts(handleUndo, handleRedo);
 
   useEffect(() => {
-    const savedBoardId = localStorage.getItem(lastBoardStorageKey);
+    if (authStatus === "loading") {
+      return;
+    }
+
+    if (!user) {
+      setRecentBoards([]);
+      setBoardId(null);
+      setSaveStatus("idle");
+      setStatusMessage("Unsaved board");
+      return;
+    }
+
+    void refreshRecentBoards();
+    const savedBoardId = localStorage.getItem(lastBoardKeyFor(user.id));
 
     if (!savedBoardId) {
       return;
     }
 
     void loadBoard(savedBoardId, "Loaded last saved board");
-  }, []);
+  }, [authStatus, user?.id]);
 
   useEffect(() => {
     const handleSelectedItemDelete = (event: KeyboardEvent) => {
@@ -260,12 +278,16 @@ export function BoardPage() {
       setSuggestions([]);
       setAnalysisSource(null);
       setAnalysisError("");
-      localStorage.setItem(lastBoardStorageKey, board.id);
-      setRecentBoards(updateRecentBoards(board));
+      if (user) {
+        localStorage.setItem(lastBoardKeyFor(user.id), board.id);
+      }
+      await refreshRecentBoards();
       setSaveStatus("saved");
       setStatusMessage(successMessage);
     } catch (error) {
-      localStorage.removeItem(lastBoardStorageKey);
+      if (user) {
+        localStorage.removeItem(lastBoardKeyFor(user.id));
+      }
       setSaveStatus("error");
       setStatusMessage(error instanceof Error ? error.message : "Could not load board");
     }
@@ -386,7 +408,9 @@ export function BoardPage() {
     setSuggestions([]);
     setAnalysisSource(null);
     setAnalysisError("");
-    localStorage.removeItem(lastBoardStorageKey);
+    if (user) {
+      localStorage.removeItem(lastBoardKeyFor(user.id));
+    }
     setSaveStatus("idle");
     setStatusMessage("Unsaved demo board");
   };
@@ -426,6 +450,11 @@ export function BoardPage() {
   };
 
   const handleSaveBoard = async () => {
+    if (!user) {
+      requestAuth("Sign in to save this board to your account.");
+      return;
+    }
+
     setSaveStatus("saving");
     setStatusMessage("Saving...");
 
@@ -442,8 +471,8 @@ export function BoardPage() {
 
       setBoardId(savedBoard.id);
       setBoardName(savedBoard.name);
-      localStorage.setItem(lastBoardStorageKey, savedBoard.id);
-      setRecentBoards(updateRecentBoards(savedBoard));
+      localStorage.setItem(lastBoardKeyFor(user.id), savedBoard.id);
+      await refreshRecentBoards();
       setSaveStatus("saved");
       setStatusMessage("Saved");
     } catch (error) {
@@ -535,7 +564,9 @@ export function BoardPage() {
       setSuggestions([]);
       setAnalysisSource(null);
       setAnalysisError("");
-      localStorage.removeItem(lastBoardStorageKey);
+      if (user) {
+        localStorage.removeItem(lastBoardKeyFor(user.id));
+      }
       setSaveStatus("idle");
       setStatusMessage("Imported board - save to store it");
     } catch (error) {
@@ -657,6 +688,19 @@ export function BoardPage() {
     if (saveStatus !== "loading" && saveStatus !== "saving") {
       setSaveStatus("idle");
       setStatusMessage(boardId ? "Unsaved changes" : "Unsaved board");
+    }
+  }
+
+  async function refreshRecentBoards() {
+    if (!user) {
+      setRecentBoards([]);
+      return;
+    }
+
+    try {
+      setRecentBoards(await listRecentBoards());
+    } catch {
+      setRecentBoards([]);
     }
   }
 
@@ -922,46 +966,6 @@ function layerYFor(type: BoardElementType): number {
   return 820;
 }
 
-function readRecentBoards(): RecentBoard[] {
-  const storedValue = localStorage.getItem(recentBoardsStorageKey);
-
-  if (!storedValue) {
-    return [];
-  }
-
-  try {
-    const parsedValue = JSON.parse(storedValue);
-    return Array.isArray(parsedValue) ? parsedValue.filter(isRecentBoard) : [];
-  } catch {
-    return [];
-  }
-}
-
-function updateRecentBoards(board: Board): RecentBoard[] {
-  const nextRecentBoard: RecentBoard = {
-    id: board.id,
-    name: board.name,
-    updatedAt: board.updatedAt,
-  };
-  const nextRecentBoards = [
-    nextRecentBoard,
-    ...readRecentBoards().filter((recentBoard) => recentBoard.id !== board.id),
-  ].slice(0, 5);
-
-  localStorage.setItem(recentBoardsStorageKey, JSON.stringify(nextRecentBoards));
-  return nextRecentBoards;
-}
-
-function isRecentBoard(value: unknown): value is RecentBoard {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const candidate = value as Partial<RecentBoard>;
-
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.name === "string" &&
-    typeof candidate.updatedAt === "string"
-  );
+function lastBoardKeyFor(userId: string): string {
+  return `${lastBoardStorageKey}:${userId}`;
 }

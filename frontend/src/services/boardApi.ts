@@ -1,4 +1,4 @@
-import type { Board, BoardGraph } from "../types/board";
+import type { Board, BoardGraph, RecentBoard } from "../types/board";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -9,6 +9,7 @@ type SaveBoardPayload = BoardGraph & {
 export async function createBoard(payload: SaveBoardPayload): Promise<Board> {
   const response = await fetch(`${API_URL}/api/boards`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -21,6 +22,7 @@ export async function createBoard(payload: SaveBoardPayload): Promise<Board> {
 export async function updateBoard(boardId: string, payload: SaveBoardPayload): Promise<Board> {
   const response = await fetch(`${API_URL}/api/boards/${boardId}`, {
     method: "PATCH",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -31,20 +33,35 @@ export async function updateBoard(boardId: string, payload: SaveBoardPayload): P
 }
 
 export async function getBoard(boardId: string): Promise<Board> {
-  const response = await fetch(`${API_URL}/api/boards/${boardId}`);
+  const response = await fetch(`${API_URL}/api/boards/${boardId}`, {
+    credentials: "include",
+  });
   return parseBoardResponse(response);
+}
+
+export async function listRecentBoards(): Promise<RecentBoard[]> {
+  const response = await fetch(`${API_URL}/api/boards`, {
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessageFor(response, "Could not load recent boards"));
+  }
+
+  const result = (await response.json()) as { boards?: RecentBoard[] };
+  return Array.isArray(result.boards) ? result.boards : [];
 }
 
 async function parseBoardResponse(response: Response): Promise<Board> {
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => null);
-    const message =
-      typeof errorBody?.message === "string"
-        ? errorBody.message
-        : "Board request failed";
-
-    throw new Error(message);
+    throw new Error(await errorMessageFor(response, "Board request failed"));
   }
 
   return response.json() as Promise<Board>;
+}
+
+async function errorMessageFor(response: Response, fallback: string): Promise<string> {
+  const errorBody = await response.json().catch(() => null);
+
+  return typeof errorBody?.message === "string" ? errorBody.message : fallback;
 }

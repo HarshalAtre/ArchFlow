@@ -9,6 +9,7 @@ type SaveLLDBoardPayload = LLDDraft & {
 export async function createLLDBoard(payload: SaveLLDBoardPayload): Promise<LLDBoard> {
   const response = await fetch(`${API_URL}/api/lld-boards`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
@@ -22,6 +23,7 @@ export async function updateLLDBoard(
 ): Promise<LLDBoard> {
   const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`, {
     method: "PATCH",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
@@ -30,12 +32,16 @@ export async function updateLLDBoard(
 }
 
 export async function getLLDBoard(boardId: string): Promise<LLDBoard> {
-  const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`);
+  const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`, {
+    credentials: "include",
+  });
   return parseLLDBoardResponse(response);
 }
 
 export async function listRecentLLDBoards(): Promise<RecentLLDBoard[]> {
-  const response = await fetch(`${API_URL}/api/lld-boards`);
+  const response = await fetch(`${API_URL}/api/lld-boards`, {
+    credentials: "include",
+  });
 
   if (!response.ok) {
     throw new Error(await errorMessageFor(response, "Could not load recent LLD boards"));

@@ -7,8 +7,11 @@ export async function createLLDBoard(board: LLDBoard): Promise<LLDBoard> {
   return toLLDBoard(document.toObject());
 }
 
-export async function findLLDBoardById(boardId: string): Promise<LLDBoard | null> {
-  const document = await LLDBoardModel.findOne({ id: boardId }).lean();
+export async function findLLDBoardById(
+  boardId: string,
+  ownerId: string,
+): Promise<LLDBoard | null> {
+  const document = await LLDBoardModel.findOne({ id: boardId, ownerId }).lean();
   return document ? toLLDBoard(document) : null;
 }
 
@@ -29,9 +32,12 @@ export async function listRecentLLDBoards(
   }));
 }
 
-export async function updateLLDBoard(board: LLDBoard): Promise<LLDBoard | null> {
+export async function updateLLDBoard(
+  board: LLDBoard,
+  ownerId: string,
+): Promise<LLDBoard | null> {
   const document = await LLDBoardModel.findOneAndUpdate(
-    { id: board.id },
+    { id: board.id, ownerId },
     { $set: board },
     { new: true },
   ).lean();

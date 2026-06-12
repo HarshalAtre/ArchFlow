@@ -13,7 +13,7 @@ const positionSchema = new Schema(
 const memberSchema = new Schema(
   {
     id: { type: String, required: true },
-    signature: { type: String, required: true },
+    signature: { type: String, default: "" },
     visibility: { type: String, required: true },
   },
   { _id: false },
@@ -27,7 +27,7 @@ const umlClassSchema = new Schema(
     position: { type: positionSchema, required: true },
     attributes: { type: [memberSchema], default: [] },
     methods: { type: [memberSchema], default: [] },
-    responsibility: { type: String, required: true },
+    responsibility: { type: String, default: "" },
   },
   { _id: false },
 );
@@ -40,9 +40,9 @@ const relationshipSchema = new Schema(
     sourceHandleId: { type: String },
     targetHandleId: { type: String },
     kind: { type: String, required: true },
-    label: { type: String, required: true },
-    sourceMultiplicity: { type: String, required: true },
-    targetMultiplicity: { type: String, required: true },
+    label: { type: String, default: "" },
+    sourceMultiplicity: { type: String, default: "" },
+    targetMultiplicity: { type: String, default: "" },
   },
   { _id: false },
 );

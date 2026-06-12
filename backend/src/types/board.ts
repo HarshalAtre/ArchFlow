@@ -54,6 +54,8 @@ export type Board = {
   updatedAt: string;
 };
 
+export type BoardSummary = Pick<Board, "id" | "name" | "updatedAt">;
+
 export type BoardGraph = {
   elements: BoardElement[];
   edges: BoardEdge[];

@@ -1,4 +1,4 @@
-import type { Board } from "../../types/board.js";
+import type { Board, BoardSummary } from "../../types/board.js";
 
 import { BoardModel } from "./board.schema.js";
 
@@ -7,14 +7,37 @@ export async function createBoard(board: Board): Promise<Board> {
   return toBoard(document.toObject());
 }
 
-export async function findBoardById(boardId: string): Promise<Board | null> {
-  const document = await BoardModel.findOne({ id: boardId }).lean();
+export async function findBoardById(
+  boardId: string,
+  ownerId: string,
+): Promise<Board | null> {
+  const document = await BoardModel.findOne({ id: boardId, ownerId }).lean();
   return document ? toBoard(document) : null;
 }
 
-export async function updateBoard(board: Board): Promise<Board | null> {
+export async function listRecentBoards(
+  ownerId: string,
+  limit = 8,
+): Promise<BoardSummary[]> {
+  const documents = await BoardModel.find({ ownerId })
+    .sort({ updatedAt: -1 })
+    .limit(limit)
+    .select({ _id: 0, id: 1, name: 1, updatedAt: 1 })
+    .lean();
+
+  return documents.map((document) => ({
+    id: document.id,
+    name: document.name,
+    updatedAt: document.updatedAt,
+  }));
+}
+
+export async function updateBoard(
+  board: Board,
+  ownerId: string,
+): Promise<Board | null> {
   const document = await BoardModel.findOneAndUpdate(
-    { id: board.id },
+    { id: board.id, ownerId },
     { $set: board },
     { new: true },
   ).lean();

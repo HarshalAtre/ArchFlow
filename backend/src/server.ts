@@ -1,14 +1,20 @@
 import { randomUUID } from "node:crypto";
 
 import cors from "cors";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 
+import { asyncHandler } from "./http/async-handler.js";
 import {
   analyzeHLDWithAI,
   analyzeLLDWithAI,
 } from "./modules/ai/ai.service.js";
 import { cleanupArchitectureLayout } from "./modules/architecture/architecture.service.js";
-import { createBoard, findBoardById, updateBoard } from "./modules/boards/board.repository.js";
+import {
+  createBoard,
+  findBoardById,
+  listRecentBoards,
+  updateBoard,
+} from "./modules/boards/board.repository.js";
 import { validateBoardGraph } from "./modules/boards/board.validation.js";
 import {
   createLLDBoard,
@@ -17,6 +23,11 @@ import {
   updateLLDBoard,
 } from "./modules/lld-boards/lld-board.repository.js";
 import { validateLLDGraph } from "./modules/lld-boards/lld-board.validation.js";
+import {
+  authUserFromResponse,
+  requireAuth,
+} from "./modules/auth/auth.middleware.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
 import { env } from "./config/env.js";
 import { connectToMongo } from "./database/mongo.js";
 import type { Board, BoardGraph } from "./types/board.js";
@@ -25,10 +36,23 @@ import type { LLDBoard, LLDGraph } from "./types/lld.js";
 const app = express();
 app.use(
   cors({
+    credentials: true,
     origin: env.webOrigin,
   }),
 );
+app.use((request: Request, response: Response, next: NextFunction) => {
+  const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(request.method);
+  const origin = request.headers.origin;
+
+  if (!isSafeMethod && origin && origin !== env.webOrigin) {
+    response.status(403).json({ message: "Request origin is not allowed." });
+    return;
+  }
+
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
+app.use("/api/auth", authRouter);
 
 app.get("/api/health", (_request: Request, response: Response) => {
   response.json({
@@ -37,13 +61,20 @@ app.get("/api/health", (_request: Request, response: Response) => {
   });
 });
 
-app.post("/api/boards", async (request: Request, response: Response) => {
+app.get("/api/boards", requireAuth, asyncHandler(async (_request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const boards = await listRecentBoards(user.id);
+  response.json({ boards });
+}));
+
+app.post("/api/boards", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
   const now = new Date().toISOString();
   const graph = request.body as Partial<BoardGraph>;
   const board: Board = {
     id: randomUUID(),
     name: typeof request.body?.name === "string" ? request.body.name : "Untitled Board",
-    ownerId: "demo-user",
+    ownerId: user.id,
     elements: graph.elements ?? [],
     edges: graph.edges ?? [],
     createdAt: now,
@@ -59,10 +90,11 @@ app.post("/api/boards", async (request: Request, response: Response) => {
 
   const createdBoard = await createBoard(board);
   response.status(201).json(createdBoard);
-});
+}));
 
-app.get("/api/boards/:boardId", async (request: Request, response: Response) => {
-  const board = await findBoardById(request.params.boardId);
+app.get("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const board = await findBoardById(request.params.boardId, user.id);
 
   if (!board) {
     response.status(404).json({ message: "Board not found" });
@@ -70,10 +102,11 @@ app.get("/api/boards/:boardId", async (request: Request, response: Response) => 
   }
 
   response.json(board);
-});
+}));
 
-app.patch("/api/boards/:boardId", async (request: Request, response: Response) => {
-  const currentBoard = await findBoardById(request.params.boardId);
+app.patch("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const currentBoard = await findBoardById(request.params.boardId, user.id);
 
   if (!currentBoard) {
     response.status(404).json({ message: "Board not found" });
@@ -95,16 +128,18 @@ app.patch("/api/boards/:boardId", async (request: Request, response: Response) =
     return;
   }
 
-  const updatedBoard = await updateBoard(nextBoard);
+  const updatedBoard = await updateBoard(nextBoard, user.id);
   response.json(updatedBoard);
-});
+}));
 
-app.get("/api/lld-boards", async (_request: Request, response: Response) => {
-  const boards = await listRecentLLDBoards("demo-user");
+app.get("/api/lld-boards", requireAuth, asyncHandler(async (_request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const boards = await listRecentLLDBoards(user.id);
   response.json({ boards });
-});
+}));
 
-app.post("/api/lld-boards", async (request: Request, response: Response) => {
+app.post("/api/lld-boards", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
   const now = new Date().toISOString();
   const graph: LLDGraph = {
     classes: Array.isArray(request.body?.classes) ? request.body.classes : [],
@@ -122,7 +157,7 @@ app.post("/api/lld-boards", async (request: Request, response: Response) => {
   const board: LLDBoard = {
     id: randomUUID(),
     name: normalizedBoardName(request.body?.name, "Untitled LLD"),
-    ownerId: "demo-user",
+    ownerId: user.id,
     ...graph,
     createdAt: now,
     updatedAt: now,
@@ -130,10 +165,11 @@ app.post("/api/lld-boards", async (request: Request, response: Response) => {
 
   const createdBoard = await createLLDBoard(board);
   response.status(201).json(createdBoard);
-});
+}));
 
-app.get("/api/lld-boards/:boardId", async (request: Request, response: Response) => {
-  const board = await findLLDBoardById(request.params.boardId);
+app.get("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const board = await findLLDBoardById(request.params.boardId, user.id);
 
   if (!board) {
     response.status(404).json({ message: "LLD board not found" });
@@ -141,10 +177,11 @@ app.get("/api/lld-boards/:boardId", async (request: Request, response: Response)
   }
 
   response.json(board);
-});
+}));
 
-app.patch("/api/lld-boards/:boardId", async (request: Request, response: Response) => {
-  const currentBoard = await findLLDBoardById(request.params.boardId);
+app.patch("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const currentBoard = await findLLDBoardById(request.params.boardId, user.id);
 
   if (!currentBoard) {
     response.status(404).json({ message: "LLD board not found" });
@@ -167,11 +204,11 @@ app.patch("/api/lld-boards/:boardId", async (request: Request, response: Respons
     return;
   }
 
-  const updatedBoard = await updateLLDBoard(nextBoard);
+  const updatedBoard = await updateLLDBoard(nextBoard, user.id);
   response.json(updatedBoard);
-});
+}));
 
-app.post("/api/ai/analyze/hld", async (request: Request, response: Response) => {
+app.post("/api/ai/analyze/hld", asyncHandler(async (request: Request, response: Response) => {
   const graph = request.body as BoardGraph;
   const errors = validateBoardGraph(graph);
 
@@ -181,9 +218,9 @@ app.post("/api/ai/analyze/hld", async (request: Request, response: Response) => 
   }
 
   response.json(await analyzeHLDWithAI(graph));
-});
+}));
 
-app.post("/api/ai/analyze/lld", async (request: Request, response: Response) => {
+app.post("/api/ai/analyze/lld", asyncHandler(async (request: Request, response: Response) => {
   const graph = request.body as LLDGraph;
   const errors = validateLLDGraph(graph);
 
@@ -193,7 +230,7 @@ app.post("/api/ai/analyze/lld", async (request: Request, response: Response) => 
   }
 
   response.json(await analyzeLLDWithAI(graph));
-});
+}));
 
 app.post("/api/architecture/cleanup", (request: Request, response: Response) => {
   const graph = request.body as BoardGraph;
@@ -207,9 +244,39 @@ app.post("/api/architecture/cleanup", (request: Request, response: Response) => 
   response.json(cleanupArchitectureLayout(graph));
 });
 
+app.use(
+  (
+    error: unknown,
+    _request: Request,
+    response: Response,
+    _next: NextFunction,
+  ) => {
+    console.error("API request failed", error);
+
+    if (response.headersSent) {
+      return;
+    }
+
+    const isValidationError =
+      Boolean(error) &&
+      typeof error === "object" &&
+      (error as { name?: unknown }).name === "ValidationError";
+
+    response.status(isValidationError ? 400 : 500).json({
+      message: isValidationError
+        ? "The board contains data that could not be saved."
+        : "The server could not complete this request.",
+    });
+  },
+);
+
 async function bootstrap(): Promise<void> {
   if (!env.mongoUri) {
     throw new Error("MONGO_URI is required");
+  }
+
+  if (env.nodeEnv === "production" && env.authSecret.length < 32) {
+    throw new Error("AUTH_SECRET must contain at least 32 characters in production");
   }
 
   await connectToMongo(env.mongoUri);
