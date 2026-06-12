@@ -29,10 +29,14 @@ export type UmlRelationshipKind =
   | "aggregation"
   | "composition";
 
+export type UmlHandleId = "top" | "right" | "bottom" | "left";
+
 export type UmlRelationship = {
   id: string;
   sourceClassId: string;
   targetClassId: string;
+  sourceHandleId?: UmlHandleId;
+  targetHandleId?: UmlHandleId;
   kind: UmlRelationshipKind;
   label: string;
   sourceMultiplicity: string;

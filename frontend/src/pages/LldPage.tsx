@@ -1,6 +1,7 @@
 import {
   Background,
   Connection,
+  ConnectionMode,
   Controls,
   Edge,
   EdgeLabelRenderer,
@@ -30,6 +31,7 @@ import type {
   LldDraft,
   UmlClass,
   UmlClassKind,
+  UmlHandleId,
   UmlMember,
   UmlRelationship,
   UmlRelationshipKind,
@@ -73,6 +75,7 @@ const relationshipKinds: UmlRelationshipKind[] = [
   "aggregation",
   "composition",
 ];
+const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
 export function LldPage() {
@@ -104,21 +107,27 @@ export function LldPage() {
 
   const edges = useMemo(
     () =>
-      relationships.map((relationship): UmlRelationshipEdge => ({
-        id: relationship.id,
-        type: "uml-relationship",
-        source: relationship.sourceClassId,
-        target: relationship.targetClassId,
-        data: {
-          kind: relationship.kind,
-          label: relationship.label,
-          onSelect: selectRelationship,
-          sourceMultiplicity: relationship.sourceMultiplicity,
-          targetMultiplicity: relationship.targetMultiplicity,
-        },
-        selected: relationship.id === selectedRelationshipId,
-      })),
-    [relationships, selectedRelationshipId],
+      relationships.map((relationship): UmlRelationshipEdge => {
+        const handles = handlesForRelationship(relationship, classes);
+
+        return {
+          id: relationship.id,
+          type: "uml-relationship",
+          source: relationship.sourceClassId,
+          sourceHandle: handles.source,
+          target: relationship.targetClassId,
+          targetHandle: handles.target,
+          data: {
+            kind: relationship.kind,
+            label: relationship.label,
+            onSelect: selectRelationship,
+            sourceMultiplicity: relationship.sourceMultiplicity,
+            targetMultiplicity: relationship.targetMultiplicity,
+          },
+          selected: relationship.id === selectedRelationshipId,
+        };
+      }),
+    [classes, relationships, selectedRelationshipId],
   );
 
   const selectedClass = classes.find((umlClass) => umlClass.id === selectedClassId);
@@ -194,6 +203,8 @@ export function LldPage() {
       id: `relationship-${crypto.randomUUID()}`,
       sourceClassId: connection.source,
       targetClassId: connection.target,
+      sourceHandleId: isUmlHandleId(connection.sourceHandle) ? connection.sourceHandle : undefined,
+      targetHandleId: isUmlHandleId(connection.targetHandle) ? connection.targetHandle : undefined,
       kind: "association",
       label: "",
       sourceMultiplicity: "",
@@ -359,6 +370,7 @@ export function LldPage() {
             edges={edges}
             edgeTypes={umlEdgeTypes}
             nodeTypes={umlNodeTypes}
+            connectionMode={ConnectionMode.Loose}
             onConnect={handleConnect}
             onNodesChange={handleNodesChange}
             onEdgeClick={(_, edge) => selectRelationship(edge.id)}
@@ -633,7 +645,10 @@ function MemberEditor({ emptyText, label, members, onMembersChange }: MemberEdit
 function UmlClassNode({ data, selected }: NodeProps<UmlNode>) {
   return (
     <div className={`uml-class-node ${selected ? "uml-class-node-selected" : ""}`}>
-      <Handle type="target" position={Position.Left} />
+      <UmlConnectionHandle id="top" position={Position.Top} />
+      <UmlConnectionHandle id="right" position={Position.Right} />
+      <UmlConnectionHandle id="bottom" position={Position.Bottom} />
+      <UmlConnectionHandle id="left" position={Position.Left} />
       <div className="uml-class-header">
         {data.kind === "interface" ? <span>&lt;&lt;interface&gt;&gt;</span> : null}
         {data.kind === "abstract" ? <span>&lt;&lt;abstract&gt;&gt;</span> : null}
@@ -642,8 +657,18 @@ function UmlClassNode({ data, selected }: NodeProps<UmlNode>) {
       </div>
       <UmlMemberSection members={data.attributes} fallback="- attributes" />
       <UmlMemberSection members={data.methods} fallback="+ methods()" />
-      <Handle type="source" position={Position.Right} />
     </div>
+  );
+}
+
+function UmlConnectionHandle({ id, position }: { id: UmlHandleId; position: Position }) {
+  return (
+    <Handle
+      id={id}
+      className={`uml-class-handle uml-class-handle-${id}`}
+      type="source"
+      position={position}
+    />
   );
 }
 
@@ -900,6 +925,8 @@ function isUmlRelationship(value: unknown): value is UmlRelationship {
     typeof candidate.id === "string" &&
     typeof candidate.sourceClassId === "string" &&
     typeof candidate.targetClassId === "string" &&
+    (candidate.sourceHandleId === undefined || isUmlHandleId(candidate.sourceHandleId)) &&
+    (candidate.targetHandleId === undefined || isUmlHandleId(candidate.targetHandleId)) &&
     isUmlRelationshipKind(candidate.kind) &&
     typeof candidate.label === "string" &&
     typeof candidate.sourceMultiplicity === "string" &&
@@ -953,6 +980,42 @@ function isUmlRelationshipKind(value: unknown): value is UmlRelationshipKind {
   return typeof value === "string" && relationshipKinds.includes(value as UmlRelationshipKind);
 }
 
+function isUmlHandleId(value: unknown): value is UmlHandleId {
+  return typeof value === "string" && umlHandleIds.includes(value as UmlHandleId);
+}
+
 function isUmlVisibility(value: unknown): value is UmlVisibility {
   return typeof value === "string" && visibilities.includes(value as UmlVisibility);
+}
+
+function handlesForRelationship(
+  relationship: UmlRelationship,
+  classes: UmlClass[],
+): { source: UmlHandleId; target: UmlHandleId } {
+  if (relationship.sourceHandleId && relationship.targetHandleId) {
+    return {
+      source: relationship.sourceHandleId,
+      target: relationship.targetHandleId,
+    };
+  }
+
+  const sourceClass = classes.find((umlClass) => umlClass.id === relationship.sourceClassId);
+  const targetClass = classes.find((umlClass) => umlClass.id === relationship.targetClassId);
+
+  if (!sourceClass || !targetClass) {
+    return { source: "right", target: "left" };
+  }
+
+  const deltaX = targetClass.position.x - sourceClass.position.x;
+  const deltaY = targetClass.position.y - sourceClass.position.y;
+
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0
+      ? { source: "right", target: "left" }
+      : { source: "left", target: "right" };
+  }
+
+  return deltaY >= 0
+    ? { source: "bottom", target: "top" }
+    : { source: "top", target: "bottom" };
 }

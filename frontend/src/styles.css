@@ -155,8 +155,9 @@ button:disabled {
 }
 
 .uml-class-node {
+  position: relative;
   min-width: 260px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #172033;
   border-radius: 4px;
   background: #ffffff;
@@ -169,6 +170,31 @@ button:disabled {
 .uml-class-node-selected {
   border-color: #1d4ed8;
   box-shadow: 0 0 0 3px #dbe7ff;
+}
+
+.uml-class-handle {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #ffffff;
+  background: #64748b;
+  box-shadow: 0 0 0 1px #94a3b8;
+  cursor: crosshair;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    scale 120ms ease;
+}
+
+.uml-class-node-selected .uml-class-handle,
+.uml-class-handle:hover,
+.uml-class-handle.connectingfrom,
+.uml-class-handle.connectingto {
+  background: #1d4ed8;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+
+.uml-class-handle:hover {
+  scale: 1.18;
 }
 
 .uml-class-header {
