@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { analyzeArchitecture, cleanupArchitectureLayout } from "./architectureEngine";
+import { cleanupArchitectureLayout } from "./architectureEngine";
 import type { BoardElement, BoardElementType, BoardGraph } from "../types/board";
 
 describe("cleanupArchitectureLayout", () => {
@@ -45,80 +45,6 @@ describe("cleanupArchitectureLayout", () => {
 
     expect(xPositions[1] - xPositions[0]).toBe(260);
     expect(xPositions[2] - xPositions[1]).toBe(260);
-  });
-});
-
-describe("analyzeArchitecture", () => {
-  it("suggests an API gateway and database for a client-service diagram", () => {
-    const suggestions = analyzeArchitecture({
-      elements: [
-        element("web-client", "client", "Web Client", 0, 0),
-        element("orders-api", "service", "Order Service", 0, 0),
-      ],
-      edges: [],
-    });
-
-    expect(suggestions.map((suggestion) => suggestion.id)).toEqual([
-      "suggest-api-gateway",
-      "suggest-database",
-    ]);
-    expect(suggestions[0]?.severity).toBe("high");
-  });
-
-  it("suggests a cache when several services share a database", () => {
-    const suggestions = analyzeArchitecture({
-      elements: [
-        element("gateway", "api-gateway", "API Gateway", 0, 0),
-        element("orders-api", "service", "Order Service", 0, 0),
-        element("billing-api", "service", "Billing Service", 0, 0),
-        element("shipping-api", "service", "Shipping Service", 0, 0),
-        element("orders-db", "database", "Orders DB", 0, 0),
-      ],
-      edges: [],
-    });
-
-    expect(suggestions).toContainEqual(
-      expect.objectContaining({
-        id: "suggest-cache",
-        suggestedElementType: "cache",
-        type: "performance",
-      }),
-    );
-  });
-
-  it("suggests a queue for notification or worker workloads", () => {
-    const suggestions = analyzeArchitecture({
-      elements: [
-        element("gateway", "api-gateway", "API Gateway", 0, 0),
-        element("notification-worker", "service", "Notification Worker", 0, 0),
-        element("notifications-db", "database", "Notifications DB", 0, 0),
-      ],
-      edges: [],
-    });
-
-    expect(suggestions).toContainEqual(
-      expect.objectContaining({
-        id: "suggest-queue",
-        suggestedElementType: "queue",
-        type: "reliability",
-      }),
-    );
-  });
-
-  it("does not suggest missing gateway, database, cache, or queue for a complete diagram", () => {
-    const suggestions = analyzeArchitecture({
-      elements: [
-        element("web-client", "client", "Web Client", 0, 0),
-        element("gateway", "api-gateway", "API Gateway", 0, 0),
-        element("orders-api", "service", "Order Service", 0, 0),
-        element("orders-db", "database", "Orders DB", 0, 0),
-        element("session-cache", "cache", "Session Cache", 0, 0),
-        element("order-events", "queue", "Order Events", 0, 0),
-      ],
-      edges: [],
-    });
-
-    expect(suggestions).toEqual([]);
   });
 });
 

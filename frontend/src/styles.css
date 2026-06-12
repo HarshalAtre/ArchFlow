@@ -365,6 +365,17 @@ h1 {
   gap: 8px;
 }
 
+.analysis-source {
+  width: fit-content;
+  margin: 0;
+  border-radius: 999px;
+  background: #e8eefc;
+  color: #2447a8;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
 .transfer-button-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

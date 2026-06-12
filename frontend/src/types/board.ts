@@ -62,13 +62,3 @@ export type Board = BoardGraph & {
   createdAt: string;
   updatedAt: string;
 };
-
-export type ArchitectureSuggestion = {
-  id: string;
-  type: "missing-component" | "scalability" | "performance" | "reliability" | "security";
-  severity: "low" | "medium" | "high";
-  title: string;
-  description: string;
-  relatedElementIds: string[];
-  suggestedElementType?: BoardElementType;
-};

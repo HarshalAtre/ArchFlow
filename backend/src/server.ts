@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import cors from "cors";
 import express, { Request, Response } from "express";
 
-import { analyzeArchitecture, cleanupArchitectureLayout } from "./modules/architecture/architecture.service.js";
+import {
+  analyzeHLDWithAI,
+  analyzeLLDWithAI,
+} from "./modules/ai/ai.service.js";
+import { cleanupArchitectureLayout } from "./modules/architecture/architecture.service.js";
 import { createBoard, findBoardById, updateBoard } from "./modules/boards/board.repository.js";
 import { validateBoardGraph } from "./modules/boards/board.validation.js";
 import {
@@ -167,7 +171,7 @@ app.patch("/api/lld-boards/:boardId", async (request: Request, response: Respons
   response.json(updatedBoard);
 });
 
-app.post("/api/architecture/analyze", (request: Request, response: Response) => {
+app.post("/api/ai/analyze/hld", async (request: Request, response: Response) => {
   const graph = request.body as BoardGraph;
   const errors = validateBoardGraph(graph);
 
@@ -176,9 +180,19 @@ app.post("/api/architecture/analyze", (request: Request, response: Response) => 
     return;
   }
 
-  response.json({
-    suggestions: analyzeArchitecture(graph),
-  });
+  response.json(await analyzeHLDWithAI(graph));
+});
+
+app.post("/api/ai/analyze/lld", async (request: Request, response: Response) => {
+  const graph = request.body as LLDGraph;
+  const errors = validateLLDGraph(graph);
+
+  if (errors.length > 0) {
+    response.status(400).json({ errors });
+    return;
+  }
+
+  response.json(await analyzeLLDWithAI(graph));
 });
 
 app.post("/api/architecture/cleanup", (request: Request, response: Response) => {

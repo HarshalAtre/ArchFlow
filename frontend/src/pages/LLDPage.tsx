@@ -29,7 +29,11 @@ import {
   useUndoRedo,
   useUndoRedoShortcuts,
 } from "../hooks/useUndoRedo";
-import { analyzeLLDDesign, type LLDSuggestion } from "../services/lldDesignAdvisor";
+import {
+  isGraphNodeChange,
+  useNodeMeasurements,
+} from "../hooks/useNodeMeasurements";
+import { analyzeLLDGraph } from "../services/aiAdvisorApi";
 import {
   createLLDTransferFile,
   downloadTransferFile,
@@ -60,6 +64,10 @@ import type {
   UmlRelationshipKind,
   UmlVisibility,
 } from "../types/lld";
+import type {
+  AnalysisSource,
+  LLDAnalysisSuggestion,
+} from "../types/ai";
 
 type UmlNodeData = {
   attributes: UmlMember[];
@@ -123,13 +131,17 @@ export function LLDPage() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(() => readSelectedClassId());
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(lldTemplates[0].id);
-  const [suggestions, setSuggestions] = useState<LLDSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<LLDAnalysisSuggestion[]>([]);
+  const [analysisSource, setAnalysisSource] = useState<AnalysisSource | null>(null);
+  const [analysisError, setAnalysisError] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
   const [recentBoards, setRecentBoards] = useState<RecentLLDBoard[]>([]);
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "loading" | "saving" | "saved" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved LLD board");
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
+  const { captureMeasurements, measurementFor } = useNodeMeasurements();
 
   const nodes = useMemo(
     () =>
@@ -138,6 +150,7 @@ export function LLDPage() {
         type: "uml-class",
         position: umlClass.position,
         selected: umlClass.id === selectedClassId,
+        measured: measurementFor(umlClass.id),
         data: {
           attributes: umlClass.attributes,
           kind: umlClass.kind,
@@ -145,7 +158,7 @@ export function LLDPage() {
           name: umlClass.name,
         },
       })),
-    [classes, selectedClassId],
+    [classes, selectedClassId, measurementFor],
   );
 
   const edges = useMemo(
@@ -218,11 +231,14 @@ export function LLDPage() {
   }, [classes, selectedClassId]);
 
   const handleNodesChange = (changes: NodeChange[]) => {
-    if (!changes.some((change) => change.type === "position" || change.type === "remove")) {
+    captureMeasurements(changes);
+    const graphChanges = changes.filter(isGraphNodeChange);
+
+    if (graphChanges.length === 0) {
       return;
     }
 
-    const nextNodes = applyNodeChanges(changes, nodes);
+    const nextNodes = applyNodeChanges(graphChanges, nodes);
     const nextNodeIds = new Set(nextNodes.map((node) => node.id));
 
     setLLDGraph((currentGraph) => ({
@@ -243,9 +259,7 @@ export function LLDPage() {
       ),
     }));
 
-    if (changes.some((change) => change.type === "position" || change.type === "remove")) {
-      markUnsaved();
-    }
+    markUnsaved();
   };
 
   const handleConnect = (connection: Connection) => {
@@ -360,6 +374,8 @@ export function LLDPage() {
     setSelectedClassId(nextDraft.classes.at(0)?.id ?? null);
     setSelectedRelationshipId(null);
     setSuggestions([]);
+    setAnalysisSource(null);
+    setAnalysisError("");
     setBoardId(null);
     setBoardName(`${selectedTemplate.name} LLD`);
     localStorage.removeItem(lastLLDBoardStorageKey);
@@ -417,6 +433,8 @@ export function LLDPage() {
     setSelectedClassId(board.classes.at(0)?.id ?? null);
     setSelectedRelationshipId(null);
     setSuggestions([]);
+    setAnalysisSource(null);
+    setAnalysisError("");
     localStorage.setItem(lastLLDBoardStorageKey, board.id);
   }
 
@@ -480,6 +498,8 @@ export function LLDPage() {
       setSelectedClassId(null);
       setSelectedRelationshipId(null);
       setSuggestions([]);
+      setAnalysisSource(null);
+      setAnalysisError("");
       localStorage.removeItem(lastLLDBoardStorageKey);
       setSaveStatus("idle");
       setStatusMessage("Imported LLD board - save to store it");
@@ -512,6 +532,130 @@ export function LLDPage() {
     } finally {
       setBusyExport(null);
     }
+  }
+
+  async function handleAnalyze() {
+    setAnalysisLoading(true);
+    setAnalysisError("");
+
+    try {
+      const result = await analyzeLLDGraph(lldGraph);
+      setSuggestions(result.suggestions);
+      setAnalysisSource(result.source);
+    } catch (error) {
+      setSuggestions([]);
+      setAnalysisSource(null);
+      setAnalysisError(error instanceof Error ? error.message : "AI analysis failed");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  function applySuggestion(suggestion: LLDAnalysisSuggestion) {
+    const action = suggestion.action;
+
+    if (!action) {
+      return;
+    }
+
+    if (action.kind === "add-type") {
+      const duplicateName = classes.some(
+        (umlClass) => umlClass.name.toLowerCase() === action.name.toLowerCase(),
+      );
+      const anchorClass = classes.find(
+        (umlClass) => umlClass.id === action.anchorClassId,
+      );
+
+      if (duplicateName || !anchorClass) {
+        setAnalysisError(
+          duplicateName
+            ? `${action.name} already exists in this diagram.`
+            : "The suggested anchor type is no longer available.",
+        );
+        return;
+      }
+
+      const nextClassId = `uml-${crypto.randomUUID()}`;
+      const nextClass: UmlClass = {
+        id: nextClassId,
+        kind: action.classKind,
+        name: action.name,
+        position: positionForSuggestedType(classes, anchorClass, action),
+        attributes: action.attributes.map((signature) =>
+          createMember(action.classKind === "enum" ? "+" : "-", signature),
+        ),
+        methods: action.methods.map((signature) => createMember("+", signature)),
+        responsibility: action.responsibility,
+      };
+      const nextRelationship: UmlRelationship = {
+        id: `relationship-${crypto.randomUUID()}`,
+        sourceClassId:
+          action.relationshipDirection === "existing-to-new"
+            ? anchorClass.id
+            : nextClassId,
+        targetClassId:
+          action.relationshipDirection === "existing-to-new"
+            ? nextClassId
+            : anchorClass.id,
+        kind: action.relationshipKind,
+        label: action.relationshipLabel,
+        sourceMultiplicity: "",
+        targetMultiplicity: "",
+      };
+
+      setLLDGraph((currentGraph) => ({
+        classes: [...currentGraph.classes, nextClass],
+        relationships: [...currentGraph.relationships, nextRelationship],
+      }));
+      setSelectedClassId(nextClass.id);
+      setSelectedRelationshipId(null);
+    } else {
+      const sourceExists = classes.some(
+        (umlClass) => umlClass.id === action.sourceClassId,
+      );
+      const targetExists = classes.some(
+        (umlClass) => umlClass.id === action.targetClassId,
+      );
+      const relationshipExists = relationships.some(
+        (relationship) =>
+          relationship.sourceClassId === action.sourceClassId &&
+          relationship.targetClassId === action.targetClassId,
+      );
+
+      if (!sourceExists || !targetExists || relationshipExists) {
+        setAnalysisError(
+          relationshipExists
+            ? "Those UML types are already connected."
+            : "The suggested UML types are no longer available.",
+        );
+        return;
+      }
+
+      const nextRelationship: UmlRelationship = {
+        id: `relationship-${crypto.randomUUID()}`,
+        sourceClassId: action.sourceClassId,
+        targetClassId: action.targetClassId,
+        kind: action.relationshipKind,
+        label: action.label,
+        sourceMultiplicity: "",
+        targetMultiplicity: "",
+      };
+
+      setLLDGraph((currentGraph) => ({
+        ...currentGraph,
+        relationships: [...currentGraph.relationships, nextRelationship],
+      }));
+      setSelectedClassId(null);
+      setSelectedRelationshipId(nextRelationship.id);
+    }
+
+    setSuggestions((currentSuggestions) =>
+      currentSuggestions.filter(
+        (currentSuggestion) => currentSuggestion.id !== suggestion.id,
+      ),
+    );
+    setAnalysisError("");
+    markUnsaved();
   }
 
   return (
@@ -621,9 +765,10 @@ export function LLDPage() {
           <button
             type="button"
             className="primary-button"
-            onClick={() => setSuggestions(analyzeLLDDesign(classes, relationships))}
+            disabled={analysisLoading}
+            onClick={() => void handleAnalyze()}
           >
-            Analyze LLD
+            {analysisLoading ? "Analyzing..." : "Analyze LLD"}
           </button>
           <p className="status-text">Checks responsibilities, contracts, coupling, and UML relation usage.</p>
         </div>
@@ -701,7 +846,13 @@ export function LLDPage() {
           onDeleteRelationship={deleteSelectedRelationship}
           onRelationshipChange={updateSelectedRelationship}
         />
-        <LLDAnalysisPanel suggestions={suggestions} />
+        <LLDAnalysisPanel
+          error={analysisError}
+          loading={analysisLoading}
+          source={analysisSource}
+          suggestions={suggestions}
+          onApplySuggestion={applySuggestion}
+        />
       </aside>
     </main>
   );
@@ -861,10 +1012,31 @@ function LLDContextPanel({
   );
 }
 
-function LLDAnalysisPanel({ suggestions }: { suggestions: LLDSuggestion[] }) {
+type LLDAnalysisPanelProps = {
+  error: string;
+  loading: boolean;
+  source: AnalysisSource | null;
+  suggestions: LLDAnalysisSuggestion[];
+  onApplySuggestion: (suggestion: LLDAnalysisSuggestion) => void;
+};
+
+function LLDAnalysisPanel({
+  error,
+  loading,
+  source,
+  suggestions,
+  onApplySuggestion,
+}: LLDAnalysisPanelProps) {
   return (
     <section>
       <span className="section-label">LLD Analysis</span>
+      {source ? (
+        <p className="analysis-source">
+          {source === "ai" ? "Groq AI analysis" : "Rule-based fallback"}
+        </p>
+      ) : null}
+      {error ? <p className="status-text status-error">{error}</p> : null}
+      {loading ? <p className="muted">Analyzing the UML design...</p> : null}
       {suggestions.length > 0 ? (
         <div className="suggestions">
           {suggestions.map((suggestion) => (
@@ -872,12 +1044,20 @@ function LLDAnalysisPanel({ suggestions }: { suggestions: LLDSuggestion[] }) {
               <span>{labelForSeverity(suggestion.severity)}</span>
               <strong>{suggestion.title}</strong>
               <p>{suggestion.description}</p>
+              {suggestion.action ? (
+                <button
+                  type="button"
+                  onClick={() => onApplySuggestion(suggestion)}
+                >
+                  {labelForLLDAction(suggestion.action)}
+                </button>
+              ) : null}
             </article>
           ))}
         </div>
-      ) : (
+      ) : !loading ? (
         <p className="muted">Run Analyze LLD to get design feedback for interview practice.</p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -1154,14 +1334,66 @@ function descriptionForRelationshipKind(kind: UmlRelationshipKind): string {
   return descriptions[kind];
 }
 
-function labelForSeverity(severity: LLDSuggestion["severity"]): string {
-  const labels: Record<LLDSuggestion["severity"], string> = {
+function labelForSeverity(severity: LLDAnalysisSuggestion["severity"]): string {
+  const labels: Record<LLDAnalysisSuggestion["severity"], string> = {
     critical: "Critical",
     info: "Suggestion",
     warning: "Warning",
   };
 
   return labels[severity];
+}
+
+function labelForLLDAction(
+  action: NonNullable<LLDAnalysisSuggestion["action"]>,
+): string {
+  return action.kind === "add-type"
+    ? `Add ${action.name}`
+    : `Add ${labelForRelationshipKind(action.relationshipKind)}`;
+}
+
+function positionForSuggestedType(
+  classes: UmlClass[],
+  anchorClass: UmlClass,
+  action: Extract<
+    NonNullable<LLDAnalysisSuggestion["action"]>,
+    { kind: "add-type" }
+  >,
+): UmlClass["position"] {
+  const isHierarchyRelationship =
+    action.relationshipKind === "inheritance" ||
+    action.relationshipKind === "implementation";
+  const initialPosition = isHierarchyRelationship
+    ? {
+        x: anchorClass.position.x,
+        y: anchorClass.position.y + 300,
+      }
+    : {
+        x:
+          anchorClass.position.x +
+          (action.relationshipDirection === "existing-to-new" ? 360 : -360),
+        y: anchorClass.position.y,
+      };
+  const candidate = {
+    x: Math.max(40, initialPosition.x),
+    y: Math.max(40, initialPosition.y),
+  };
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const overlaps = classes.some(
+      (umlClass) =>
+        Math.abs(umlClass.position.x - candidate.x) < 280 &&
+        Math.abs(umlClass.position.y - candidate.y) < 180,
+    );
+
+    if (!overlaps) {
+      return candidate;
+    }
+
+    candidate.y += 220;
+  }
+
+  return candidate;
 }
 
 function formatUpdatedAt(updatedAt: string): string {

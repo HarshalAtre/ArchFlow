@@ -18,12 +18,17 @@ import {
   useUndoRedo,
   useUndoRedoShortcuts,
 } from "../hooks/useUndoRedo";
+import {
+  isGraphNodeChange,
+  useNodeMeasurements,
+} from "../hooks/useNodeMeasurements";
 import { ArchitectureAssistPanel } from "../components/board/ArchitectureAssistPanel";
 import { BoardCanvas } from "../components/board/BoardCanvas";
 import { BoardToolbar } from "../components/board/BoardToolbar";
 import { ContextPanel } from "../components/board/ContextPanel";
 import { labelForType } from "../components/board/boardLabels";
-import { analyzeArchitecture, cleanupArchitectureLayout } from "../services/architectureEngine";
+import { analyzeHLDGraph } from "../services/aiAdvisorApi";
+import { cleanupArchitectureLayout } from "../services/architectureEngine";
 import {
   createHLDTransferFile,
   downloadTransferFile,
@@ -33,7 +38,6 @@ import {
 } from "../services/boardTransfer";
 import { createBoard, getBoard, updateBoard } from "../services/boardApi";
 import type {
-  ArchitectureSuggestion,
   Board,
   BoardEdge,
   BoardElement,
@@ -43,6 +47,10 @@ import type {
   Position,
   RecentBoard,
 } from "../types/board";
+import type {
+  AnalysisSource,
+  HLDAnalysisSuggestion,
+} from "../types/ai";
 
 const addableElementTypes: BoardElementType[] = [
   "client",
@@ -162,17 +170,26 @@ export function BoardPage() {
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [recentBoards, setRecentBoards] = useState<RecentBoard[]>(() => readRecentBoards());
-  const [suggestions, setSuggestions] = useState<ArchitectureSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<HLDAnalysisSuggestion[]>([]);
+  const [analysisSource, setAnalysisSource] = useState<AnalysisSource | null>(null);
+  const [analysisError, setAnalysisError] = useState("");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved board");
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
+  const { captureMeasurements, measurementFor } = useNodeMeasurements();
 
   const nodes = useMemo(
     () =>
       graph.elements.map((element) =>
-        toFlowNode(element, element.id === selectedElementId, selectElement),
+        toFlowNode(
+          element,
+          element.id === selectedElementId,
+          selectElement,
+          measurementFor(element.id),
+        ),
       ),
-    [graph.elements, selectedElementId],
+    [graph.elements, selectedElementId, measurementFor],
   );
   const edges = useMemo(
     () =>
@@ -241,6 +258,8 @@ export function BoardPage() {
       setSelectedElementId(null);
       setSelectedEdgeId(null);
       setSuggestions([]);
+      setAnalysisSource(null);
+      setAnalysisError("");
       localStorage.setItem(lastBoardStorageKey, board.id);
       setRecentBoards(updateRecentBoards(board));
       setSaveStatus("saved");
@@ -253,11 +272,14 @@ export function BoardPage() {
   }
 
   const handleNodesChange: OnNodesChange = (changes: NodeChange[]) => {
-    if (!hasUserNodeChange(changes)) {
+    captureMeasurements(changes);
+    const graphChanges = changes.filter(isGraphNodeChange);
+
+    if (graphChanges.length === 0) {
       return;
     }
 
-    const nextNodes = applyNodeChanges(changes, nodes);
+    const nextNodes = applyNodeChanges(graphChanges, nodes);
     const nextNodeIds = new Set(nextNodes.map((node) => node.id));
 
     setGraph((currentGraph) => ({
@@ -362,6 +384,8 @@ export function BoardPage() {
     setSelectedElementId(null);
     setSelectedEdgeId(null);
     setSuggestions([]);
+    setAnalysisSource(null);
+    setAnalysisError("");
     localStorage.removeItem(lastBoardStorageKey);
     setSaveStatus("idle");
     setStatusMessage("Unsaved demo board");
@@ -461,15 +485,34 @@ export function BoardPage() {
     markUnsaved();
   };
 
-  const applySuggestion = (suggestion: ArchitectureSuggestion) => {
-    if (!suggestion.suggestedElementType) {
+  const applySuggestion = (suggestion: HLDAnalysisSuggestion) => {
+    if (!suggestion.action) {
       return;
     }
 
     const nextGraph = applyArchitectureSuggestion(graph, suggestion);
     setGraph(nextGraph);
-    setSuggestions(analyzeArchitecture(nextGraph));
+    setSuggestions((currentSuggestions) =>
+      currentSuggestions.filter((currentSuggestion) => currentSuggestion.id !== suggestion.id),
+    );
     markUnsaved();
+  };
+
+  const handleAnalyze = async () => {
+    setAnalysisLoading(true);
+    setAnalysisError("");
+
+    try {
+      const result = await analyzeHLDGraph(graph);
+      setSuggestions(result.suggestions);
+      setAnalysisSource(result.source);
+    } catch (error) {
+      setSuggestions([]);
+      setAnalysisSource(null);
+      setAnalysisError(error instanceof Error ? error.message : "AI analysis failed");
+    } finally {
+      setAnalysisLoading(false);
+    }
   };
 
   const handleExportJson = () => {
@@ -490,6 +533,8 @@ export function BoardPage() {
       setSelectedElementId(null);
       setSelectedEdgeId(null);
       setSuggestions([]);
+      setAnalysisSource(null);
+      setAnalysisError("");
       localStorage.removeItem(lastBoardStorageKey);
       setSaveStatus("idle");
       setStatusMessage("Imported board - save to store it");
@@ -529,6 +574,7 @@ export function BoardPage() {
       <BoardToolbar
         boardId={boardId}
         boardName={boardName}
+        analyzing={analysisLoading}
         busyExport={busyExport}
         canRedo={canRedo}
         canUndo={canUndo}
@@ -537,7 +583,7 @@ export function BoardPage() {
         saveStatus={saveStatus}
         statusMessage={statusMessage}
         onAddNode={addNode}
-        onAnalyze={() => setSuggestions(analyzeArchitecture(graph))}
+        onAnalyze={() => void handleAnalyze()}
         onBoardNameChange={(name) => {
           setBoardName(name);
           markUnsaved();
@@ -596,7 +642,13 @@ export function BoardPage() {
           onLabelChange={updateSelectedElementLabel}
           onMetadataChange={updateSelectedElementMetadata}
         />
-        <ArchitectureAssistPanel suggestions={suggestions} onApplySuggestion={applySuggestion} />
+        <ArchitectureAssistPanel
+          error={analysisError}
+          loading={analysisLoading}
+          source={analysisSource}
+          suggestions={suggestions}
+          onApplySuggestion={applySuggestion}
+        />
       </aside>
     </main>
   );
@@ -653,6 +705,7 @@ function toFlowNode(
   element: BoardElement,
   selected: boolean,
   onSelect: (nodeId: string) => void,
+  measured: Node["measured"],
 ): Node {
   return {
     id: element.id,
@@ -665,6 +718,7 @@ function toFlowNode(
       onSelect,
     },
     selected,
+    measured,
     style: {
       width: element.size.width,
     },
@@ -701,29 +755,27 @@ function toFlowEdge(
   };
 }
 
-function hasUserNodeChange(changes: NodeChange[]): boolean {
-  return changes.some((change) => change.type === "position" || change.type === "remove");
-}
-
 function applyArchitectureSuggestion(
   graph: BoardGraph,
-  suggestion: ArchitectureSuggestion,
+  suggestion: HLDAnalysisSuggestion,
 ): BoardGraph {
-  if (!suggestion.suggestedElementType) {
+  const action = suggestion.action;
+
+  if (!action) {
     return graph;
   }
 
   const suggestedElement = createElement(
-    `${suggestion.suggestedElementType}-${crypto.randomUUID()}`,
-    suggestion.suggestedElementType,
-    labelForType(suggestion.suggestedElementType),
-    suggestedPositionForType(graph, suggestion.suggestedElementType).x,
-    suggestedPositionForType(graph, suggestion.suggestedElementType).y,
+    `${action.elementType}-${crypto.randomUUID()}`,
+    action.elementType,
+    action.label,
+    suggestedPositionForType(graph, action.elementType).x,
+    suggestedPositionForType(graph, action.elementType).y,
   );
 
   return {
     elements: [...graph.elements, suggestedElement],
-    edges: [...graph.edges, ...suggestedEdgesForElement(graph, suggestedElement, suggestion)],
+    edges: [...graph.edges, ...suggestedEdgesForElement(graph, suggestedElement, action)],
   };
 }
 
@@ -740,17 +792,20 @@ function suggestedPositionForType(graph: BoardGraph, type: BoardElementType): Po
 function suggestedEdgesForElement(
   graph: BoardGraph,
   suggestedElement: BoardElement,
-  suggestion: ArchitectureSuggestion,
+  action: NonNullable<HLDAnalysisSuggestion["action"]>,
 ): BoardEdge[] {
-  const relatedElements = graph.elements.filter((element) =>
-    suggestion.relatedElementIds.includes(element.id),
-  );
-  const clients = relatedElements.filter((element) => element.type === "client");
-  const services = relatedElements.filter((element) => element.type === "service");
-  const databases = relatedElements.filter((element) => element.type === "database");
+  const validElementIds = new Set(graph.elements.map((element) => element.id));
   const newEdges: BoardEdge[] = [];
 
   const addSuggestedEdge = (sourceElementId: string, targetElementId: string) => {
+    if (!validElementIds.has(sourceElementId) && sourceElementId !== suggestedElement.id) {
+      return;
+    }
+
+    if (!validElementIds.has(targetElementId) && targetElementId !== suggestedElement.id) {
+      return;
+    }
+
     const alreadyExists = [...graph.edges, ...newEdges].some(
       (edge) => edge.sourceElementId === sourceElementId && edge.targetElementId === targetElementId,
     );
@@ -764,36 +819,12 @@ function suggestedEdgesForElement(
     }
   };
 
-  if (suggestedElement.type === "api-gateway" || suggestedElement.type === "load-balancer") {
-    for (const client of clients) {
-      addSuggestedEdge(client.id, suggestedElement.id);
-    }
-
-    for (const service of services) {
-      addSuggestedEdge(suggestedElement.id, service.id);
-    }
+  for (const sourceElementId of action.connectFromElementIds) {
+    addSuggestedEdge(sourceElementId, suggestedElement.id);
   }
 
-  if (suggestedElement.type === "database") {
-    for (const service of services) {
-      addSuggestedEdge(service.id, suggestedElement.id);
-    }
-  }
-
-  if (suggestedElement.type === "cache") {
-    for (const service of services) {
-      addSuggestedEdge(service.id, suggestedElement.id);
-    }
-
-    for (const database of databases) {
-      addSuggestedEdge(suggestedElement.id, database.id);
-    }
-  }
-
-  if (suggestedElement.type === "queue") {
-    for (const service of services) {
-      addSuggestedEdge(service.id, suggestedElement.id);
-    }
+  for (const targetElementId of action.connectToElementIds) {
+    addSuggestedEdge(suggestedElement.id, targetElementId);
   }
 
   return newEdges;

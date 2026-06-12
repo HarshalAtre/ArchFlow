@@ -9,6 +9,7 @@ type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
 type BoardToolbarProps = {
   boardId: string | null;
   boardName: string;
+  analyzing: boolean;
   busyExport: "pdf" | "png" | null;
   canRedo: boolean;
   canUndo: boolean;
@@ -34,6 +35,7 @@ type BoardToolbarProps = {
 export function BoardToolbar({
   boardId,
   boardName,
+  analyzing,
   busyExport,
   canRedo,
   canUndo,
@@ -128,8 +130,8 @@ export function BoardToolbar({
         <button type="button" onClick={onCleanUp}>
           Clean Up
         </button>
-        <button type="button" onClick={onAnalyze}>
-          Analyze
+        <button type="button" disabled={analyzing} onClick={onAnalyze}>
+          {analyzing ? "Analyzing..." : "Analyze"}
         </button>
       </div>
 
