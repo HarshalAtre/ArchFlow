@@ -1,19 +1,19 @@
 import type { UmlClass, UmlRelationship } from "../types/lld";
 
-export type LldSuggestionSeverity = "info" | "warning" | "critical";
+export type LLDSuggestionSeverity = "info" | "warning" | "critical";
 
-export type LldSuggestion = {
+export type LLDSuggestion = {
   id: string;
   title: string;
   description: string;
-  severity: LldSuggestionSeverity;
+  severity: LLDSuggestionSeverity;
 };
 
-export function analyzeLldDesign(
+export function analyzeLLDDesign(
   classes: UmlClass[],
   relationships: UmlRelationship[],
-): LldSuggestion[] {
-  const suggestions: LldSuggestion[] = [];
+): LLDSuggestion[] {
+  const suggestions: LLDSuggestion[] = [];
   const classById = new Map(classes.map((umlClass) => [umlClass.id, umlClass]));
 
   if (classes.length < 3) {

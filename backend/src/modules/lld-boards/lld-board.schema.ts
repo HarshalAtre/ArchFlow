@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 
-import type { LldBoard } from "../../types/lld.js";
+import type { LLDBoard } from "../../types/lld.js";
 
 const positionSchema = new Schema(
   {
@@ -47,7 +47,7 @@ const relationshipSchema = new Schema(
   { _id: false },
 );
 
-const lldBoardSchema = new Schema<LldBoard>(
+const lldBoardSchema = new Schema<LLDBoard>(
   {
     id: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
@@ -63,4 +63,4 @@ const lldBoardSchema = new Schema<LldBoard>(
   },
 );
 
-export const LldBoardModel = model<LldBoard>("LldBoard", lldBoardSchema);
+export const LLDBoardModel = model<LLDBoard>("LLDBoard", lldBoardSchema);

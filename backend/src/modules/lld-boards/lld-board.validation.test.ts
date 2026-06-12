@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { LldGraph } from "../../types/lld.js";
+import type { LLDGraph } from "../../types/lld.js";
 
-import { validateLldGraph } from "./lld-board.validation.js";
+import { validateLLDGraph } from "./lld-board.validation.js";
 
-describe("validateLldGraph", () => {
+describe("validateLLDGraph", () => {
   it("accepts valid UML classes and four-side relationship handles", () => {
     const graph = exampleGraph();
 
@@ -20,7 +20,7 @@ describe("validateLldGraph", () => {
       targetMultiplicity: "1",
     });
 
-    expect(validateLldGraph(graph)).toEqual([]);
+    expect(validateLLDGraph(graph)).toEqual([]);
   });
 
   it("rejects relationships that reference missing classes", () => {
@@ -36,14 +36,14 @@ describe("validateLldGraph", () => {
       targetMultiplicity: "",
     });
 
-    expect(validateLldGraph(graph)).toEqual([
+    expect(validateLLDGraph(graph)).toEqual([
       "Relationship relationship-missing has missing source missing-source",
       "Relationship relationship-missing has missing target missing-target",
     ]);
   });
 });
 
-function exampleGraph(): LldGraph {
+function exampleGraph(): LLDGraph {
   return {
     classes: [
       {

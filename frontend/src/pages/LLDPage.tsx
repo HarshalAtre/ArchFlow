@@ -21,22 +21,22 @@ import {
 } from "@xyflow/react";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-import { analyzeLldDesign, type LldSuggestion } from "../services/lldDesignAdvisor";
+import { analyzeLLDDesign, type LLDSuggestion } from "../services/lldDesignAdvisor";
 import {
-  createLldBoard,
-  getLldBoard,
-  listRecentLldBoards,
-  updateLldBoard,
+  createLLDBoard,
+  getLLDBoard,
+  listRecentLLDBoards,
+  updateLLDBoard,
 } from "../services/lldBoardApi";
 import {
-  cloneLldDraft,
-  getDefaultLldDraft,
+  cloneLLDDraft,
+  getDefaultLLDDraft,
   lldTemplates,
 } from "../services/lldTemplates";
 import type {
-  LldBoard,
-  LldDraft,
-  RecentLldBoard,
+  LLDBoard,
+  LLDDraft,
+  RecentLLDBoard,
   UmlClass,
   UmlClassKind,
   UmlHandleId,
@@ -74,7 +74,7 @@ const umlEdgeTypes: EdgeTypes = {
 
 const classKinds: UmlClassKind[] = ["class", "abstract", "interface", "enum"];
 const lldDraftStorageKey = "archflow:lld-draft";
-const lastLldBoardStorageKey = "archflow:last-lld-board-id";
+const lastLLDBoardStorageKey = "archflow:last-lld-board-id";
 const lldSelectedClassStorageKey = "archflow:lld-selected-class";
 const relationshipKinds: UmlRelationshipKind[] = [
   "association",
@@ -87,18 +87,18 @@ const relationshipKinds: UmlRelationshipKind[] = [
 const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
-export function LldPage() {
+export function LLDPage() {
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState("Order Platform LLD");
-  const [classes, setClasses] = useState<UmlClass[]>(() => readLldDraft().classes);
+  const [classes, setClasses] = useState<UmlClass[]>(() => readLLDDraft().classes);
   const [relationships, setRelationships] = useState<UmlRelationship[]>(
-    () => readLldDraft().relationships,
+    () => readLLDDraft().relationships,
   );
   const [selectedClassId, setSelectedClassId] = useState<string | null>(() => readSelectedClassId());
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(lldTemplates[0].id);
-  const [suggestions, setSuggestions] = useState<LldSuggestion[]>([]);
-  const [recentBoards, setRecentBoards] = useState<RecentLldBoard[]>([]);
+  const [suggestions, setSuggestions] = useState<LLDSuggestion[]>([]);
+  const [recentBoards, setRecentBoards] = useState<RecentLLDBoard[]>([]);
   const [saveStatus, setSaveStatus] = useState<
     "idle" | "loading" | "saving" | "saved" | "error"
   >("idle");
@@ -154,13 +154,13 @@ export function LldPage() {
     lldTemplates.find((template) => template.id === selectedTemplateId) ?? lldTemplates[0];
 
   useEffect(() => {
-    const savedDraft = readLldDraft();
+    const savedDraft = readLLDDraft();
     setClasses(savedDraft.classes);
     setRelationships(savedDraft.relationships);
 
     void refreshRecentBoards();
 
-    const lastBoardId = localStorage.getItem(lastLldBoardStorageKey);
+    const lastBoardId = localStorage.getItem(lastLLDBoardStorageKey);
 
     if (lastBoardId) {
       void loadBoard(lastBoardId, "Loaded last saved LLD board");
@@ -317,7 +317,7 @@ export function LldPage() {
   };
 
   const loadSelectedTemplate = () => {
-    const nextDraft = cloneLldDraft(selectedTemplate.draft);
+    const nextDraft = cloneLLDDraft(selectedTemplate.draft);
 
     setClasses(nextDraft.classes);
     setRelationships(nextDraft.relationships);
@@ -326,7 +326,7 @@ export function LldPage() {
     setSuggestions([]);
     setBoardId(null);
     setBoardName(`${selectedTemplate.name} LLD`);
-    localStorage.removeItem(lastLldBoardStorageKey);
+    localStorage.removeItem(lastLLDBoardStorageKey);
     setSaveStatus("idle");
     setStatusMessage("Unsaved template");
   };
@@ -342,8 +342,8 @@ export function LldPage() {
         relationships,
       };
       const savedBoard = boardId
-        ? await updateLldBoard(boardId, payload)
-        : await createLldBoard(payload);
+        ? await updateLLDBoard(boardId, payload)
+        : await createLLDBoard(payload);
 
       applySavedBoard(savedBoard);
       await refreshRecentBoards();
@@ -360,18 +360,18 @@ export function LldPage() {
     setStatusMessage("Loading...");
 
     try {
-      const board = await getLldBoard(boardIdToLoad);
+      const board = await getLLDBoard(boardIdToLoad);
       applySavedBoard(board);
       setSaveStatus("saved");
       setStatusMessage(successMessage);
     } catch (error) {
-      localStorage.removeItem(lastLldBoardStorageKey);
+      localStorage.removeItem(lastLLDBoardStorageKey);
       setSaveStatus("error");
       setStatusMessage(error instanceof Error ? error.message : "Could not load LLD board");
     }
   }
 
-  function applySavedBoard(board: LldBoard) {
+  function applySavedBoard(board: LLDBoard) {
     setBoardId(board.id);
     setBoardName(board.name);
     setClasses(board.classes);
@@ -379,12 +379,12 @@ export function LldPage() {
     setSelectedClassId(board.classes.at(0)?.id ?? null);
     setSelectedRelationshipId(null);
     setSuggestions([]);
-    localStorage.setItem(lastLldBoardStorageKey, board.id);
+    localStorage.setItem(lastLLDBoardStorageKey, board.id);
   }
 
   async function refreshRecentBoards() {
     try {
-      setRecentBoards(await listRecentLldBoards());
+      setRecentBoards(await listRecentLLDBoards());
     } catch {
       setRecentBoards([]);
     }
@@ -503,7 +503,7 @@ export function LldPage() {
           <button
             type="button"
             className="primary-button"
-            onClick={() => setSuggestions(analyzeLldDesign(classes, relationships))}
+            onClick={() => setSuggestions(analyzeLLDDesign(classes, relationships))}
           >
             Analyze LLD
           </button>
@@ -547,7 +547,7 @@ export function LldPage() {
       </section>
 
       <aside className="context-panel">
-        <LldContextPanel
+        <LLDContextPanel
           selectedClass={selectedClass}
           selectedRelationship={selectedRelationship}
           onClassChange={updateSelectedClass}
@@ -555,13 +555,13 @@ export function LldPage() {
           onDeleteRelationship={deleteSelectedRelationship}
           onRelationshipChange={updateSelectedRelationship}
         />
-        <LldAnalysisPanel suggestions={suggestions} />
+        <LLDAnalysisPanel suggestions={suggestions} />
       </aside>
     </main>
   );
 }
 
-type LldContextPanelProps = {
+type LLDContextPanelProps = {
   selectedClass: UmlClass | undefined;
   selectedRelationship: UmlRelationship | undefined;
   onClassChange: (updates: Partial<UmlClass>) => void;
@@ -570,14 +570,14 @@ type LldContextPanelProps = {
   onRelationshipChange: (updates: Partial<UmlRelationship>) => void;
 };
 
-function LldContextPanel({
+function LLDContextPanel({
   selectedClass,
   selectedRelationship,
   onClassChange,
   onDeleteClass,
   onDeleteRelationship,
   onRelationshipChange,
-}: LldContextPanelProps) {
+}: LLDContextPanelProps) {
   if (selectedRelationship) {
     return (
       <section>
@@ -715,7 +715,7 @@ function LldContextPanel({
   );
 }
 
-function LldAnalysisPanel({ suggestions }: { suggestions: LldSuggestion[] }) {
+function LLDAnalysisPanel({ suggestions }: { suggestions: LLDSuggestion[] }) {
   return (
     <section>
       <span className="section-label">LLD Analysis</span>
@@ -1008,8 +1008,8 @@ function descriptionForRelationshipKind(kind: UmlRelationshipKind): string {
   return descriptions[kind];
 }
 
-function labelForSeverity(severity: LldSuggestion["severity"]): string {
-  const labels: Record<LldSuggestion["severity"], string> = {
+function labelForSeverity(severity: LLDSuggestion["severity"]): string {
+  const labels: Record<LLDSuggestion["severity"], string> = {
     critical: "Critical",
     info: "Suggestion",
     warning: "Warning",
@@ -1028,11 +1028,11 @@ function formatUpdatedAt(updatedAt: string): string {
   return parsedDate.toLocaleString();
 }
 
-function readLldDraft(): LldDraft {
+function readLLDDraft(): LLDDraft {
   const storedValue = localStorage.getItem(lldDraftStorageKey);
 
   if (!storedValue) {
-    return getDefaultLldDraft();
+    return getDefaultLLDDraft();
   }
 
   try {
@@ -1045,13 +1045,13 @@ function readLldDraft(): LldDraft {
       };
     }
 
-    if (isLldDraft(parsedValue)) {
+    if (isLLDDraft(parsedValue)) {
       return parsedValue;
     }
 
-    return getDefaultLldDraft();
+    return getDefaultLLDDraft();
   } catch {
-    return getDefaultLldDraft();
+    return getDefaultLLDDraft();
   }
 }
 
@@ -1099,12 +1099,12 @@ function isUmlRelationship(value: unknown): value is UmlRelationship {
   );
 }
 
-function isLldDraft(value: unknown): value is LldDraft {
+function isLLDDraft(value: unknown): value is LLDDraft {
   if (!value || typeof value !== "object") {
     return false;
   }
 
-  const candidate = value as Partial<LldDraft>;
+  const candidate = value as Partial<LLDDraft>;
 
   return (
     Array.isArray(candidate.classes) &&

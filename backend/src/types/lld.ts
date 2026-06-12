@@ -43,12 +43,12 @@ export type UmlRelationship = {
   targetMultiplicity: string;
 };
 
-export type LldGraph = {
+export type LLDGraph = {
   classes: UmlClass[];
   relationships: UmlRelationship[];
 };
 
-export type LldBoard = LldGraph & {
+export type LLDBoard = LLDGraph & {
   id: string;
   name: string;
   ownerId: string;
@@ -56,7 +56,7 @@ export type LldBoard = LldGraph & {
   updatedAt: string;
 };
 
-export type LldBoardSummary = {
+export type LLDBoardSummary = {
   id: string;
   name: string;
   updatedAt: string;

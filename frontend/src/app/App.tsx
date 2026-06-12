@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { BoardPage } from "../pages/BoardPage";
-import { LldPage } from "../pages/LldPage";
+import { LLDPage } from "../pages/LLDPage";
 
 type DesignMode = "hld" | "lld";
 
@@ -26,7 +26,7 @@ export function App() {
           LLD Board
         </button>
       </nav>
-      {activeMode === "hld" ? <BoardPage /> : <LldPage />}
+      {activeMode === "hld" ? <BoardPage /> : <LLDPage />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type {
-  LldGraph,
+  LLDGraph,
   UmlClassKind,
   UmlHandleId,
   UmlRelationshipKind,
@@ -18,12 +18,12 @@ const relationshipKinds: UmlRelationshipKind[] = [
 const handleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
-export function validateLldGraph(value: unknown): string[] {
+export function validateLLDGraph(value: unknown): string[] {
   if (!value || typeof value !== "object") {
     return ["LLD graph must be an object"];
   }
 
-  const graph = value as Partial<LldGraph>;
+  const graph = value as Partial<LLDGraph>;
 
   if (!Array.isArray(graph.classes) || !Array.isArray(graph.relationships)) {
     return ["LLD graph must contain classes and relationships arrays"];

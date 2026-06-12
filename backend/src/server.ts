@@ -7,16 +7,16 @@ import { analyzeArchitecture, cleanupArchitectureLayout } from "./modules/archit
 import { createBoard, findBoardById, updateBoard } from "./modules/boards/board.repository.js";
 import { validateBoardGraph } from "./modules/boards/board.validation.js";
 import {
-  createLldBoard,
-  findLldBoardById,
-  listRecentLldBoards,
-  updateLldBoard,
+  createLLDBoard,
+  findLLDBoardById,
+  listRecentLLDBoards,
+  updateLLDBoard,
 } from "./modules/lld-boards/lld-board.repository.js";
-import { validateLldGraph } from "./modules/lld-boards/lld-board.validation.js";
+import { validateLLDGraph } from "./modules/lld-boards/lld-board.validation.js";
 import { env } from "./config/env.js";
 import { connectToMongo } from "./database/mongo.js";
 import type { Board, BoardGraph } from "./types/board.js";
-import type { LldBoard, LldGraph } from "./types/lld.js";
+import type { LLDBoard, LLDGraph } from "./types/lld.js";
 
 const app = express();
 app.use(
@@ -96,26 +96,26 @@ app.patch("/api/boards/:boardId", async (request: Request, response: Response) =
 });
 
 app.get("/api/lld-boards", async (_request: Request, response: Response) => {
-  const boards = await listRecentLldBoards("demo-user");
+  const boards = await listRecentLLDBoards("demo-user");
   response.json({ boards });
 });
 
 app.post("/api/lld-boards", async (request: Request, response: Response) => {
   const now = new Date().toISOString();
-  const graph: LldGraph = {
+  const graph: LLDGraph = {
     classes: Array.isArray(request.body?.classes) ? request.body.classes : [],
     relationships: Array.isArray(request.body?.relationships)
       ? request.body.relationships
       : [],
   };
-  const errors = validateLldGraph(graph);
+  const errors = validateLLDGraph(graph);
 
   if (errors.length > 0) {
     response.status(400).json({ errors });
     return;
   }
 
-  const board: LldBoard = {
+  const board: LLDBoard = {
     id: randomUUID(),
     name: normalizedBoardName(request.body?.name, "Untitled LLD"),
     ownerId: "demo-user",
@@ -124,12 +124,12 @@ app.post("/api/lld-boards", async (request: Request, response: Response) => {
     updatedAt: now,
   };
 
-  const createdBoard = await createLldBoard(board);
+  const createdBoard = await createLLDBoard(board);
   response.status(201).json(createdBoard);
 });
 
 app.get("/api/lld-boards/:boardId", async (request: Request, response: Response) => {
-  const board = await findLldBoardById(request.params.boardId);
+  const board = await findLLDBoardById(request.params.boardId);
 
   if (!board) {
     response.status(404).json({ message: "LLD board not found" });
@@ -140,14 +140,14 @@ app.get("/api/lld-boards/:boardId", async (request: Request, response: Response)
 });
 
 app.patch("/api/lld-boards/:boardId", async (request: Request, response: Response) => {
-  const currentBoard = await findLldBoardById(request.params.boardId);
+  const currentBoard = await findLLDBoardById(request.params.boardId);
 
   if (!currentBoard) {
     response.status(404).json({ message: "LLD board not found" });
     return;
   }
 
-  const nextBoard: LldBoard = {
+  const nextBoard: LLDBoard = {
     ...currentBoard,
     name: normalizedBoardName(request.body?.name, currentBoard.name),
     classes: Array.isArray(request.body?.classes) ? request.body.classes : currentBoard.classes,
@@ -156,14 +156,14 @@ app.patch("/api/lld-boards/:boardId", async (request: Request, response: Respons
       : currentBoard.relationships,
     updatedAt: new Date().toISOString(),
   };
-  const errors = validateLldGraph(nextBoard);
+  const errors = validateLLDGraph(nextBoard);
 
   if (errors.length > 0) {
     response.status(400).json({ errors });
     return;
   }
 
-  const updatedBoard = await updateLldBoard(nextBoard);
+  const updatedBoard = await updateLLDBoard(nextBoard);
   response.json(updatedBoard);
 });
 

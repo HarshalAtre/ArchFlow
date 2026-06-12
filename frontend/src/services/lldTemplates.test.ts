@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cloneLldDraft, lldTemplates } from "./lldTemplates";
+import { cloneLLDDraft, lldTemplates } from "./lldTemplates";
 
 describe("lldTemplates", () => {
   it("provides unique template ids and valid relationship references", () => {
@@ -23,7 +23,7 @@ describe("lldTemplates", () => {
 
   it("clones drafts without sharing editable graph objects", () => {
     const sourceDraft = lldTemplates[0].draft;
-    const clonedDraft = cloneLldDraft(sourceDraft);
+    const clonedDraft = cloneLLDDraft(sourceDraft);
 
     expect(clonedDraft).toEqual(sourceDraft);
     expect(clonedDraft).not.toBe(sourceDraft);

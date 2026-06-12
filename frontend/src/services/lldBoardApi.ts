@@ -1,56 +1,56 @@
-import type { LldBoard, LldDraft, RecentLldBoard } from "../types/lld";
+import type { LLDBoard, LLDDraft, RecentLLDBoard } from "../types/lld";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
-type SaveLldBoardPayload = LldDraft & {
+type SaveLLDBoardPayload = LLDDraft & {
   name: string;
 };
 
-export async function createLldBoard(payload: SaveLldBoardPayload): Promise<LldBoard> {
+export async function createLLDBoard(payload: SaveLLDBoardPayload): Promise<LLDBoard> {
   const response = await fetch(`${API_URL}/api/lld-boards`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  return parseLldBoardResponse(response);
+  return parseLLDBoardResponse(response);
 }
 
-export async function updateLldBoard(
+export async function updateLLDBoard(
   boardId: string,
-  payload: SaveLldBoardPayload,
-): Promise<LldBoard> {
+  payload: SaveLLDBoardPayload,
+): Promise<LLDBoard> {
   const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  return parseLldBoardResponse(response);
+  return parseLLDBoardResponse(response);
 }
 
-export async function getLldBoard(boardId: string): Promise<LldBoard> {
+export async function getLLDBoard(boardId: string): Promise<LLDBoard> {
   const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`);
-  return parseLldBoardResponse(response);
+  return parseLLDBoardResponse(response);
 }
 
-export async function listRecentLldBoards(): Promise<RecentLldBoard[]> {
+export async function listRecentLLDBoards(): Promise<RecentLLDBoard[]> {
   const response = await fetch(`${API_URL}/api/lld-boards`);
 
   if (!response.ok) {
     throw new Error(await errorMessageFor(response, "Could not load recent LLD boards"));
   }
 
-  const result = (await response.json()) as { boards?: RecentLldBoard[] };
+  const result = (await response.json()) as { boards?: RecentLLDBoard[] };
   return Array.isArray(result.boards) ? result.boards : [];
 }
 
-async function parseLldBoardResponse(response: Response): Promise<LldBoard> {
+async function parseLLDBoardResponse(response: Response): Promise<LLDBoard> {
   if (!response.ok) {
     throw new Error(await errorMessageFor(response, "LLD board request failed"));
   }
 
-  return response.json() as Promise<LldBoard>;
+  return response.json() as Promise<LLDBoard>;
 }
 
 async function errorMessageFor(response: Response, fallback: string): Promise<string> {

@@ -1,10 +1,10 @@
-import type { LldDraft, LldTemplate, UmlMember, UmlVisibility } from "../types/lld";
+import type { LLDDraft, LLDTemplate, UmlMember, UmlVisibility } from "../types/lld";
 
 function member(id: string, visibility: UmlVisibility, signature: string): UmlMember {
   return { id, signature, visibility };
 }
 
-export const lldTemplates: LldTemplate[] = [
+export const lldTemplates: LLDTemplate[] = [
   {
     id: "order-platform",
     name: "Order Platform",
@@ -596,7 +596,7 @@ export const lldTemplates: LldTemplate[] = [
   },
 ];
 
-export function cloneLldDraft(draft: LldDraft): LldDraft {
+export function cloneLLDDraft(draft: LLDDraft): LLDDraft {
   return {
     classes: draft.classes.map((umlClass) => ({
       ...umlClass,
@@ -608,6 +608,6 @@ export function cloneLldDraft(draft: LldDraft): LldDraft {
   };
 }
 
-export function getDefaultLldDraft(): LldDraft {
-  return cloneLldDraft(lldTemplates[0].draft);
+export function getDefaultLLDDraft(): LLDDraft {
+  return cloneLLDDraft(lldTemplates[0].draft);
 }
