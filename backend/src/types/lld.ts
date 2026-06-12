@@ -1,12 +1,22 @@
 export type UmlVisibility = "+" | "-" | "#" | "~";
 
+export type UmlClassKind = "class" | "abstract" | "interface" | "enum";
+
+export type UmlRelationshipKind =
+  | "association"
+  | "dependency"
+  | "inheritance"
+  | "implementation"
+  | "aggregation"
+  | "composition";
+
+export type UmlHandleId = "top" | "right" | "bottom" | "left";
+
 export type UmlMember = {
   id: string;
   signature: string;
   visibility: UmlVisibility;
 };
-
-export type UmlClassKind = "class" | "abstract" | "interface" | "enum";
 
 export type UmlClass = {
   id: string;
@@ -21,16 +31,6 @@ export type UmlClass = {
   responsibility: string;
 };
 
-export type UmlRelationshipKind =
-  | "association"
-  | "dependency"
-  | "inheritance"
-  | "implementation"
-  | "aggregation"
-  | "composition";
-
-export type UmlHandleId = "top" | "right" | "bottom" | "left";
-
 export type UmlRelationship = {
   id: string;
   sourceClassId: string;
@@ -43,12 +43,12 @@ export type UmlRelationship = {
   targetMultiplicity: string;
 };
 
-export type LldDraft = {
+export type LldGraph = {
   classes: UmlClass[];
   relationships: UmlRelationship[];
 };
 
-export type LldBoard = LldDraft & {
+export type LldBoard = LldGraph & {
   id: string;
   name: string;
   ownerId: string;
@@ -56,15 +56,8 @@ export type LldBoard = LldDraft & {
   updatedAt: string;
 };
 
-export type RecentLldBoard = {
+export type LldBoardSummary = {
   id: string;
   name: string;
   updatedAt: string;
-};
-
-export type LldTemplate = {
-  id: string;
-  name: string;
-  description: string;
-  draft: LldDraft;
 };

@@ -23,12 +23,20 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { analyzeLldDesign, type LldSuggestion } from "../services/lldDesignAdvisor";
 import {
+  createLldBoard,
+  getLldBoard,
+  listRecentLldBoards,
+  updateLldBoard,
+} from "../services/lldBoardApi";
+import {
   cloneLldDraft,
   getDefaultLldDraft,
   lldTemplates,
 } from "../services/lldTemplates";
 import type {
+  LldBoard,
   LldDraft,
+  RecentLldBoard,
   UmlClass,
   UmlClassKind,
   UmlHandleId,
@@ -66,6 +74,7 @@ const umlEdgeTypes: EdgeTypes = {
 
 const classKinds: UmlClassKind[] = ["class", "abstract", "interface", "enum"];
 const lldDraftStorageKey = "archflow:lld-draft";
+const lastLldBoardStorageKey = "archflow:last-lld-board-id";
 const lldSelectedClassStorageKey = "archflow:lld-selected-class";
 const relationshipKinds: UmlRelationshipKind[] = [
   "association",
@@ -79,6 +88,8 @@ const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
 export function LldPage() {
+  const [boardId, setBoardId] = useState<string | null>(null);
+  const [boardName, setBoardName] = useState("Order Platform LLD");
   const [classes, setClasses] = useState<UmlClass[]>(() => readLldDraft().classes);
   const [relationships, setRelationships] = useState<UmlRelationship[]>(
     () => readLldDraft().relationships,
@@ -87,6 +98,11 @@ export function LldPage() {
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState(lldTemplates[0].id);
   const [suggestions, setSuggestions] = useState<LldSuggestion[]>([]);
+  const [recentBoards, setRecentBoards] = useState<RecentLldBoard[]>([]);
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "loading" | "saving" | "saved" | "error"
+  >("idle");
+  const [statusMessage, setStatusMessage] = useState("Unsaved LLD board");
 
   const nodes = useMemo(
     () =>
@@ -141,6 +157,14 @@ export function LldPage() {
     const savedDraft = readLldDraft();
     setClasses(savedDraft.classes);
     setRelationships(savedDraft.relationships);
+
+    void refreshRecentBoards();
+
+    const lastBoardId = localStorage.getItem(lastLldBoardStorageKey);
+
+    if (lastBoardId) {
+      void loadBoard(lastBoardId, "Loaded last saved LLD board");
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -192,6 +216,10 @@ export function LldPage() {
           nextNodeIds.has(relationship.sourceClassId) && nextNodeIds.has(relationship.targetClassId),
       ),
     );
+
+    if (changes.some((change) => change.type === "position" || change.type === "remove")) {
+      markUnsaved();
+    }
   };
 
   const handleConnect = (connection: Connection) => {
@@ -214,6 +242,7 @@ export function LldPage() {
     setRelationships((currentRelationships) => [...currentRelationships, nextRelationship]);
     setSelectedClassId(null);
     setSelectedRelationshipId(nextRelationship.id);
+    markUnsaved();
   };
 
   const addClass = (kind: UmlClassKind = "class") => {
@@ -230,6 +259,7 @@ export function LldPage() {
     setClasses((currentClasses) => [...currentClasses, nextClass]);
     setSelectedClassId(nextClass.id);
     setSelectedRelationshipId(null);
+    markUnsaved();
   };
 
   const updateSelectedClass = (updates: Partial<UmlClass>) => {
@@ -242,6 +272,7 @@ export function LldPage() {
         umlClass.id === selectedClassId ? { ...umlClass, ...updates } : umlClass,
       ),
     );
+    markUnsaved();
   };
 
   const deleteSelectedClass = () => {
@@ -257,6 +288,7 @@ export function LldPage() {
       ),
     );
     setSelectedClassId(null);
+    markUnsaved();
   };
 
   const updateSelectedRelationship = (updates: Partial<UmlRelationship>) => {
@@ -269,6 +301,7 @@ export function LldPage() {
         relationship.id === selectedRelationshipId ? { ...relationship, ...updates } : relationship,
       ),
     );
+    markUnsaved();
   };
 
   const deleteSelectedRelationship = () => {
@@ -280,6 +313,7 @@ export function LldPage() {
       currentRelationships.filter((relationship) => relationship.id !== selectedRelationshipId),
     );
     setSelectedRelationshipId(null);
+    markUnsaved();
   };
 
   const loadSelectedTemplate = () => {
@@ -290,11 +324,82 @@ export function LldPage() {
     setSelectedClassId(nextDraft.classes.at(0)?.id ?? null);
     setSelectedRelationshipId(null);
     setSuggestions([]);
+    setBoardId(null);
+    setBoardName(`${selectedTemplate.name} LLD`);
+    localStorage.removeItem(lastLldBoardStorageKey);
+    setSaveStatus("idle");
+    setStatusMessage("Unsaved template");
   };
+
+  const handleSaveBoard = async () => {
+    setSaveStatus("saving");
+    setStatusMessage("Saving...");
+
+    try {
+      const payload = {
+        name: boardName.trim() || "Untitled LLD",
+        classes,
+        relationships,
+      };
+      const savedBoard = boardId
+        ? await updateLldBoard(boardId, payload)
+        : await createLldBoard(payload);
+
+      applySavedBoard(savedBoard);
+      await refreshRecentBoards();
+      setSaveStatus("saved");
+      setStatusMessage("Saved to MongoDB");
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Save failed");
+    }
+  };
+
+  async function loadBoard(boardIdToLoad: string, successMessage = "Loaded saved LLD board") {
+    setSaveStatus("loading");
+    setStatusMessage("Loading...");
+
+    try {
+      const board = await getLldBoard(boardIdToLoad);
+      applySavedBoard(board);
+      setSaveStatus("saved");
+      setStatusMessage(successMessage);
+    } catch (error) {
+      localStorage.removeItem(lastLldBoardStorageKey);
+      setSaveStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Could not load LLD board");
+    }
+  }
+
+  function applySavedBoard(board: LldBoard) {
+    setBoardId(board.id);
+    setBoardName(board.name);
+    setClasses(board.classes);
+    setRelationships(board.relationships);
+    setSelectedClassId(board.classes.at(0)?.id ?? null);
+    setSelectedRelationshipId(null);
+    setSuggestions([]);
+    localStorage.setItem(lastLldBoardStorageKey, board.id);
+  }
+
+  async function refreshRecentBoards() {
+    try {
+      setRecentBoards(await listRecentLldBoards());
+    } catch {
+      setRecentBoards([]);
+    }
+  }
 
   function selectRelationship(relationshipId: string) {
     setSelectedRelationshipId(relationshipId);
     setSelectedClassId(null);
+  }
+
+  function markUnsaved() {
+    if (saveStatus !== "loading" && saveStatus !== "saving") {
+      setSaveStatus("idle");
+      setStatusMessage(boardId ? "Unsaved changes" : "Unsaved LLD board");
+    }
   }
 
   return (
@@ -303,6 +408,56 @@ export function LldPage() {
         <div>
           <p className="eyebrow">LLD Practice</p>
           <h1>UML Class Designer</h1>
+        </div>
+
+        <div className="tool-section">
+          <span className="section-label">Saved Board</span>
+          <label className="field-group">
+            <span>Name</span>
+            <input
+              aria-label="LLD board name"
+              className="text-input"
+              value={boardName}
+              onChange={(event) => {
+                setBoardName(event.target.value);
+                markUnsaved();
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="primary-button"
+            disabled={saveStatus === "loading" || saveStatus === "saving"}
+            onClick={() => void handleSaveBoard()}
+          >
+            {boardId ? "Update LLD Board" : "Save LLD Board"}
+          </button>
+          <p
+            className={`status-text ${
+              saveStatus === "saved"
+                ? "status-saved"
+                : saveStatus === "error"
+                  ? "status-error"
+                  : ""
+            }`}
+          >
+            {statusMessage}
+          </p>
+          {recentBoards.length > 0 ? (
+            <div className="recent-board-list">
+              {recentBoards.map((board) => (
+                <button
+                  key={board.id}
+                  type="button"
+                  className="recent-board-button"
+                  onClick={() => void loadBoard(board.id)}
+                >
+                  <span>{board.name}</span>
+                  <small>{formatUpdatedAt(board.updatedAt)}</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="tool-section">
@@ -861,6 +1016,16 @@ function labelForSeverity(severity: LldSuggestion["severity"]): string {
   };
 
   return labels[severity];
+}
+
+function formatUpdatedAt(updatedAt: string): string {
+  const parsedDate = new Date(updatedAt);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return updatedAt;
+  }
+
+  return parsedDate.toLocaleString();
 }
 
 function readLldDraft(): LldDraft {
