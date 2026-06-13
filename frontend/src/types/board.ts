@@ -30,6 +30,7 @@ export type BoardElementMetadata = {
 export type RecentBoard = {
   id: string;
   name: string;
+  ownerId: string;
   updatedAt: string;
 };
 
@@ -59,6 +60,7 @@ export type Board = BoardGraph & {
   id: string;
   name: string;
   ownerId: string;
+  collaboratorIds: string[];
   createdAt: string;
   updatedAt: string;
 };

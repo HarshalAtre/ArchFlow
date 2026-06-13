@@ -1,6 +1,12 @@
 import type { BoardElementType, RecentBoard } from "../../types/board";
+import type {
+  CollaborationParticipant,
+  CollaborationStatus as CollaborationState,
+} from "../../types/collaboration";
 
+import { CollaborationStatus } from "../CollaborationStatus";
 import { HistoryControls } from "../HistoryControls";
+import { ShareBoardControl } from "../ShareBoardControl";
 import { TransferControls } from "../TransferControls";
 import { labelForType } from "./boardLabels";
 
@@ -12,7 +18,12 @@ type BoardToolbarProps = {
   analyzing: boolean;
   busyExport: "pdf" | "png" | null;
   canRedo: boolean;
+  canShare: boolean;
   canUndo: boolean;
+  collaborationError: string;
+  collaborationParticipants: CollaborationParticipant[];
+  collaborationStatus: CollaborationState;
+  currentUserId: string | null;
   nodeTypes: BoardElementType[];
   recentBoards: RecentBoard[];
   saveStatus: SaveStatus;
@@ -29,6 +40,7 @@ type BoardToolbarProps = {
   onLoadBoard: (boardId: string) => void;
   onRedo: () => void;
   onSaveBoard: () => void;
+  onCreateShareLink: () => Promise<string>;
   onUndo: () => void;
 };
 
@@ -38,7 +50,12 @@ export function BoardToolbar({
   analyzing,
   busyExport,
   canRedo,
+  canShare,
   canUndo,
+  collaborationError,
+  collaborationParticipants,
+  collaborationStatus,
+  currentUserId,
   nodeTypes,
   recentBoards,
   saveStatus,
@@ -55,6 +72,7 @@ export function BoardToolbar({
   onLoadBoard,
   onRedo,
   onSaveBoard,
+  onCreateShareLink,
   onUndo,
 }: BoardToolbarProps) {
   return (
@@ -76,7 +94,10 @@ export function BoardToolbar({
                 onClick={() => onLoadBoard(recentBoard.id)}
               >
                 <span>{recentBoard.name}</span>
-                <small>{new Date(recentBoard.updatedAt).toLocaleString()}</small>
+                <small>
+                  {recentBoard.ownerId !== currentUserId ? "Shared - " : ""}
+                  {new Date(recentBoard.updatedAt).toLocaleString()}
+                </small>
               </button>
             ))}
           </div>
@@ -103,6 +124,14 @@ export function BoardToolbar({
           {statusMessage}
           {boardId ? ` (${boardId.slice(0, 8)})` : ""}
         </p>
+        <CollaborationStatus
+          error={collaborationError}
+          participants={collaborationParticipants}
+          status={collaborationStatus}
+        />
+        {canShare ? (
+          <ShareBoardControl onCreateLink={onCreateShareLink} />
+        ) : null}
         <button type="button" onClick={onLoadDemoBoard}>
           Load Demo Board
         </button>

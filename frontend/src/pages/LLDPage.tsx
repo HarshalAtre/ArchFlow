@@ -23,7 +23,9 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { CollaborationStatus } from "../components/CollaborationStatus";
 import { HistoryControls } from "../components/HistoryControls";
+import { ShareBoardControl } from "../components/ShareBoardControl";
 import { TransferControls } from "../components/TransferControls";
 import {
   isEditableHistoryTarget,
@@ -34,6 +36,7 @@ import {
   isGraphNodeChange,
   useNodeMeasurements,
 } from "../hooks/useNodeMeasurements";
+import { useBoardCollaboration } from "../hooks/useBoardCollaboration";
 import { analyzeLLDGraph } from "../services/aiAdvisorApi";
 import {
   createLLDTransferFile,
@@ -48,6 +51,7 @@ import {
   listRecentLLDBoards,
   updateLLDBoard,
 } from "../services/lldBoardApi";
+import { createShareLink } from "../services/sharingApi";
 import {
   cloneLLDDraft,
   getDefaultLLDDraft,
@@ -111,12 +115,18 @@ const relationshipKinds: UmlRelationshipKind[] = [
 const umlHandleIds: UmlHandleId[] = ["top", "right", "bottom", "left"];
 const visibilities: UmlVisibility[] = ["+", "-", "#", "~"];
 
-export function LLDPage() {
+type LLDPageProps = {
+  requestedBoardId?: string | null;
+};
+
+export function LLDPage({ requestedBoardId }: LLDPageProps) {
   const { requestAuth, status: authStatus, user } = useAuth();
   const canvasRef = useRef<HTMLElement>(null);
   const flowRef = useRef<ReactFlowInstance<UmlNode, UmlRelationshipEdge> | null>(null);
+  const loadedRequestedBoardRef = useRef<string | null>(null);
   const initialDraft = useMemo(() => readLLDDraft(), []);
   const [boardId, setBoardId] = useState<string | null>(null);
+  const [boardOwnerId, setBoardOwnerId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState("Order Platform LLD");
   const {
     beginTransaction,
@@ -144,6 +154,19 @@ export function LLDPage() {
   const [statusMessage, setStatusMessage] = useState("Unsaved LLD board");
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
   const { captureMeasurements, measurementFor } = useNodeMeasurements();
+  const collaboration = useBoardCollaboration<LLDDraft>({
+    boardId,
+    enabled: Boolean(user && boardId),
+    graph: lldGraph,
+    mode: "lld",
+    onRemoteGraph: (remoteGraph) => {
+      resetLLDGraph(remoteGraph);
+      setSelectedClassId(null);
+      setSelectedRelationshipId(null);
+      setSaveStatus("idle");
+      setStatusMessage("Live changes received");
+    },
+  });
 
   const nodes = useMemo(
     () =>
@@ -205,6 +228,7 @@ export function LLDPage() {
     if (!user) {
       setRecentBoards([]);
       setBoardId(null);
+      setBoardOwnerId(null);
       setSaveStatus("idle");
       setStatusMessage("Unsaved LLD board");
       return;
@@ -217,6 +241,19 @@ export function LLDPage() {
       void loadBoard(lastBoardId, "Loaded last saved LLD board");
     }
   }, [authStatus, user?.id]);
+
+  useEffect(() => {
+    if (
+      !user ||
+      !requestedBoardId ||
+      loadedRequestedBoardRef.current === requestedBoardId
+    ) {
+      return;
+    }
+
+    loadedRequestedBoardRef.current = requestedBoardId;
+    void loadBoard(requestedBoardId, "Joined shared LLD board");
+  }, [requestedBoardId, user?.id]);
 
   useLayoutEffect(() => {
     localStorage.setItem(
@@ -390,6 +427,7 @@ export function LLDPage() {
     setAnalysisSource(null);
     setAnalysisError("");
     setBoardId(null);
+    setBoardOwnerId(null);
     setBoardName(`${selectedTemplate.name} LLD`);
     if (user) {
       localStorage.removeItem(lastLLDBoardKeyFor(user.id));
@@ -404,6 +442,14 @@ export function LLDPage() {
       return;
     }
 
+    try {
+      await saveBoardToCloud();
+    } catch {
+      // saveBoardToCloud reports the error in the board status.
+    }
+  };
+
+  async function saveBoardToCloud() {
     setSaveStatus("saving");
     setStatusMessage("Saving...");
 
@@ -421,11 +467,13 @@ export function LLDPage() {
       await refreshRecentBoards();
       setSaveStatus("saved");
       setStatusMessage("Saved to MongoDB");
+      return savedBoard;
     } catch (error) {
       setSaveStatus("error");
       setStatusMessage(error instanceof Error ? error.message : "Save failed");
+      throw error;
     }
-  };
+  }
 
   async function loadBoard(boardIdToLoad: string, successMessage = "Loaded saved LLD board") {
     setSaveStatus("loading");
@@ -447,6 +495,7 @@ export function LLDPage() {
 
   function applySavedBoard(board: LLDBoard) {
     setBoardId(board.id);
+    setBoardOwnerId(board.ownerId);
     setBoardName(board.name);
     resetLLDGraph({
       classes: board.classes,
@@ -522,6 +571,7 @@ export function LLDPage() {
       }
 
       setBoardId(null);
+      setBoardOwnerId(null);
       setBoardName(transferFile.name);
       resetLLDGraph(transferFile.graph);
       setSelectedClassId(null);
@@ -730,6 +780,30 @@ export function LLDPage() {
           >
             {statusMessage}
           </p>
+          <CollaborationStatus
+            error={collaboration.error}
+            participants={collaboration.participants}
+            status={collaboration.status}
+          />
+          {!boardId || (user && boardOwnerId === user.id) ? (
+            <ShareBoardControl
+              onCreateLink={async () => {
+                if (!user) {
+                  requestAuth("Sign in to save and share this LLD board.");
+                  throw new Error("Sign in to continue sharing.");
+                }
+
+                if (boardId && boardOwnerId !== user.id) {
+                  throw new Error(
+                    "Only the board owner can create a share link.",
+                  );
+                }
+
+                const savedBoard = await saveBoardToCloud();
+                return createShareLink("lld", savedBoard.id);
+              }}
+            />
+          ) : null}
           {recentBoards.length > 0 ? (
             <div className="recent-board-list">
               {recentBoards.map((board) => (
@@ -740,7 +814,10 @@ export function LLDPage() {
                   onClick={() => void loadBoard(board.id)}
                 >
                   <span>{board.name}</span>
-                  <small>{formatUpdatedAt(board.updatedAt)}</small>
+                  <small>
+                    {board.ownerId !== user?.id ? "Shared - " : ""}
+                    {formatUpdatedAt(board.updatedAt)}
+                  </small>
                 </button>
               ))}
             </div>

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 
 import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
@@ -23,11 +24,13 @@ import {
   updateLLDBoard,
 } from "./modules/lld-boards/lld-board.repository.js";
 import { validateLLDGraph } from "./modules/lld-boards/lld-board.validation.js";
+import { attachCollaborationGateway } from "./modules/collaboration/collaboration.gateway.js";
 import {
   authUserFromResponse,
   requireAuth,
 } from "./modules/auth/auth.middleware.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { sharingRouter } from "./modules/sharing/sharing.routes.js";
 import { env } from "./config/env.js";
 import { connectToMongo } from "./database/mongo.js";
 import type { Board, BoardGraph } from "./types/board.js";
@@ -53,6 +56,7 @@ app.use((request: Request, response: Response, next: NextFunction) => {
 });
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/auth", authRouter);
+app.use("/api/shares", sharingRouter);
 
 app.get("/api/health", (_request: Request, response: Response) => {
   response.json({
@@ -75,6 +79,7 @@ app.post("/api/boards", requireAuth, asyncHandler(async (request: Request, respo
     id: randomUUID(),
     name: typeof request.body?.name === "string" ? request.body.name : "Untitled Board",
     ownerId: user.id,
+    collaboratorIds: [],
     elements: graph.elements ?? [],
     edges: graph.edges ?? [],
     createdAt: now,
@@ -89,7 +94,7 @@ app.post("/api/boards", requireAuth, asyncHandler(async (request: Request, respo
   }
 
   const createdBoard = await createBoard(board);
-  response.status(201).json(createdBoard);
+  response.status(201).json(withoutShareToken(createdBoard));
 }));
 
 app.get("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
@@ -101,7 +106,7 @@ app.get("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Reques
     return;
   }
 
-  response.json(board);
+  response.json(withoutShareToken(board));
 }));
 
 app.patch("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
@@ -129,7 +134,7 @@ app.patch("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Requ
   }
 
   const updatedBoard = await updateBoard(nextBoard, user.id);
-  response.json(updatedBoard);
+  response.json(updatedBoard ? withoutShareToken(updatedBoard) : null);
 }));
 
 app.get("/api/lld-boards", requireAuth, asyncHandler(async (_request: Request, response: Response) => {
@@ -158,13 +163,14 @@ app.post("/api/lld-boards", requireAuth, asyncHandler(async (request: Request, r
     id: randomUUID(),
     name: normalizedBoardName(request.body?.name, "Untitled LLD"),
     ownerId: user.id,
+    collaboratorIds: [],
     ...graph,
     createdAt: now,
     updatedAt: now,
   };
 
   const createdBoard = await createLLDBoard(board);
-  response.status(201).json(createdBoard);
+  response.status(201).json(withoutShareToken(createdBoard));
 }));
 
 app.get("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
@@ -176,7 +182,7 @@ app.get("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: Re
     return;
   }
 
-  response.json(board);
+  response.json(withoutShareToken(board));
 }));
 
 app.patch("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
@@ -205,7 +211,7 @@ app.patch("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: 
   }
 
   const updatedBoard = await updateLLDBoard(nextBoard, user.id);
-  response.json(updatedBoard);
+  response.json(updatedBoard ? withoutShareToken(updatedBoard) : null);
 }));
 
 app.post("/api/ai/analyze/hld", asyncHandler(async (request: Request, response: Response) => {
@@ -281,7 +287,10 @@ async function bootstrap(): Promise<void> {
 
   await connectToMongo(env.mongoUri);
 
-  app.listen(env.port, () => {
+  const httpServer = createServer(app);
+  attachCollaborationGateway(httpServer);
+
+  httpServer.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
   });
 }
@@ -293,4 +302,11 @@ bootstrap().catch((error: unknown) => {
 
 function normalizedBoardName(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function withoutShareToken<T extends { shareToken?: string }>(
+  value: T,
+): Omit<T, "shareToken"> {
+  const { shareToken: _shareToken, ...publicValue } = value;
+  return publicValue;
 }

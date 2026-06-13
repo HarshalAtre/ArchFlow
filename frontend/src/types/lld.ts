@@ -52,6 +52,7 @@ export type LLDBoard = LLDDraft & {
   id: string;
   name: string;
   ownerId: string;
+  collaboratorIds: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -59,6 +60,7 @@ export type LLDBoard = LLDDraft & {
 export type RecentLLDBoard = {
   id: string;
   name: string;
+  ownerId: string;
   updatedAt: string;
 };
 

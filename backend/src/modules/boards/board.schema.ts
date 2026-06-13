@@ -46,6 +46,8 @@ const boardSchema = new Schema<Board>(
     id: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
     ownerId: { type: String, required: true, index: true },
+    collaboratorIds: { type: [String], default: [], index: true },
+    shareToken: { type: String, sparse: true, unique: true },
     elements: { type: [boardElementSchema], default: [] },
     edges: { type: [boardEdgeSchema], default: [] },
     createdAt: { type: String, required: true },

@@ -48,13 +48,18 @@ export type Board = {
   id: string;
   name: string;
   ownerId: string;
+  collaboratorIds: string[];
+  shareToken?: string;
   elements: BoardElement[];
   edges: BoardEdge[];
   createdAt: string;
   updatedAt: string;
 };
 
-export type BoardSummary = Pick<Board, "id" | "name" | "updatedAt">;
+export type BoardSummary = Pick<
+  Board,
+  "id" | "name" | "ownerId" | "updatedAt"
+>;
 
 export type BoardGraph = {
   elements: BoardElement[];

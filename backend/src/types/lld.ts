@@ -52,6 +52,8 @@ export type LLDBoard = LLDGraph & {
   id: string;
   name: string;
   ownerId: string;
+  collaboratorIds: string[];
+  shareToken?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -59,5 +61,6 @@ export type LLDBoard = LLDGraph & {
 export type LLDBoardSummary = {
   id: string;
   name: string;
+  ownerId: string;
   updatedAt: string;
 };

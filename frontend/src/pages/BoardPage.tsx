@@ -23,6 +23,7 @@ import {
   isGraphNodeChange,
   useNodeMeasurements,
 } from "../hooks/useNodeMeasurements";
+import { useBoardCollaboration } from "../hooks/useBoardCollaboration";
 import { ArchitectureAssistPanel } from "../components/board/ArchitectureAssistPanel";
 import { BoardCanvas } from "../components/board/BoardCanvas";
 import { BoardToolbar } from "../components/board/BoardToolbar";
@@ -43,6 +44,7 @@ import {
   listRecentBoards,
   updateBoard,
 } from "../services/boardApi";
+import { createShareLink } from "../services/sharingApi";
 import type {
   BoardEdge,
   BoardElement,
@@ -155,11 +157,17 @@ function createDemoGraph(): BoardGraph {
 
 const lastBoardStorageKey = "archflow:last-board-id";
 
-export function BoardPage() {
+type BoardPageProps = {
+  requestedBoardId?: string | null;
+};
+
+export function BoardPage({ requestedBoardId }: BoardPageProps) {
   const { requestAuth, status: authStatus, user } = useAuth();
   const canvasRef = useRef<HTMLElement>(null);
   const flowRef = useRef<ReactFlowInstance | null>(null);
+  const loadedRequestedBoardRef = useRef<string | null>(null);
   const [boardId, setBoardId] = useState<string | null>(null);
+  const [boardOwnerId, setBoardOwnerId] = useState<string | null>(null);
   const [boardName, setBoardName] = useState(demoBoardName);
   const {
     beginTransaction,
@@ -183,6 +191,19 @@ export function BoardPage() {
   const [statusMessage, setStatusMessage] = useState("Unsaved board");
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
   const { captureMeasurements, measurementFor } = useNodeMeasurements();
+  const collaboration = useBoardCollaboration<BoardGraph>({
+    boardId,
+    enabled: Boolean(user && boardId),
+    graph,
+    mode: "hld",
+    onRemoteGraph: (remoteGraph) => {
+      resetGraph(remoteGraph);
+      setSelectedElementId(null);
+      setSelectedEdgeId(null);
+      setSaveStatus("idle");
+      setStatusMessage("Live changes received");
+    },
+  });
 
   const nodes = useMemo(
     () =>
@@ -219,6 +240,7 @@ export function BoardPage() {
     if (!user) {
       setRecentBoards([]);
       setBoardId(null);
+      setBoardOwnerId(null);
       setSaveStatus("idle");
       setStatusMessage("Unsaved board");
       return;
@@ -233,6 +255,19 @@ export function BoardPage() {
 
     void loadBoard(savedBoardId, "Loaded last saved board");
   }, [authStatus, user?.id]);
+
+  useEffect(() => {
+    if (
+      !user ||
+      !requestedBoardId ||
+      loadedRequestedBoardRef.current === requestedBoardId
+    ) {
+      return;
+    }
+
+    loadedRequestedBoardRef.current = requestedBoardId;
+    void loadBoard(requestedBoardId, "Joined shared board");
+  }, [requestedBoardId, user?.id]);
 
   useEffect(() => {
     const handleSelectedItemDelete = (event: KeyboardEvent) => {
@@ -268,6 +303,7 @@ export function BoardPage() {
       const board = await getBoard(boardIdToLoad);
 
       setBoardId(board.id);
+      setBoardOwnerId(board.ownerId);
       setBoardName(board.name);
       resetGraph({
         elements: board.elements,
@@ -401,6 +437,7 @@ export function BoardPage() {
 
   const loadDemoBoard = () => {
     setBoardId(null);
+    setBoardOwnerId(null);
     setBoardName(demoBoardName);
     resetGraph(createDemoGraph());
     setSelectedElementId(null);
@@ -455,6 +492,14 @@ export function BoardPage() {
       return;
     }
 
+    try {
+      await saveBoardToCloud(user.id);
+    } catch {
+      // saveBoardToCloud reports the error in the board status.
+    }
+  };
+
+  async function saveBoardToCloud(userId: string) {
     setSaveStatus("saving");
     setStatusMessage("Saving...");
 
@@ -470,16 +515,19 @@ export function BoardPage() {
         : await createBoard(payload);
 
       setBoardId(savedBoard.id);
+      setBoardOwnerId(savedBoard.ownerId);
       setBoardName(savedBoard.name);
-      localStorage.setItem(lastBoardKeyFor(user.id), savedBoard.id);
+      localStorage.setItem(lastBoardKeyFor(userId), savedBoard.id);
       await refreshRecentBoards();
       setSaveStatus("saved");
       setStatusMessage("Saved");
+      return savedBoard;
     } catch (error) {
       setSaveStatus("error");
       setStatusMessage(error instanceof Error ? error.message : "Save failed");
+      throw error;
     }
-  };
+  }
 
   const updateSelectedElementLabel = (label: string) => {
     if (!selectedElementId) {
@@ -557,6 +605,7 @@ export function BoardPage() {
       }
 
       setBoardId(null);
+      setBoardOwnerId(null);
       setBoardName(transferFile.name);
       resetGraph(transferFile.graph);
       setSelectedElementId(null);
@@ -608,7 +657,12 @@ export function BoardPage() {
         analyzing={analysisLoading}
         busyExport={busyExport}
         canRedo={canRedo}
+        canShare={Boolean(!boardId || (user && boardOwnerId === user.id))}
         canUndo={canUndo}
+        collaborationError={collaboration.error}
+        collaborationParticipants={collaboration.participants}
+        collaborationStatus={collaboration.status}
+        currentUserId={user?.id ?? null}
         nodeTypes={addableElementTypes}
         recentBoards={recentBoards}
         saveStatus={saveStatus}
@@ -630,6 +684,19 @@ export function BoardPage() {
         }}
         onRedo={handleRedo}
         onSaveBoard={handleSaveBoard}
+        onCreateShareLink={async () => {
+          if (!user) {
+            requestAuth("Sign in to save and share this board.");
+            throw new Error("Sign in to continue sharing.");
+          }
+
+          if (boardId && boardOwnerId !== user.id) {
+            throw new Error("Only the board owner can create a share link.");
+          }
+
+          const savedBoard = await saveBoardToCloud(user.id);
+          return createShareLink("hld", savedBoard.id);
+        }}
         onUndo={handleUndo}
       />
 

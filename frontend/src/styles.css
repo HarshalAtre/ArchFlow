@@ -585,6 +585,63 @@ h1 {
   color: #b42318;
 }
 
+.collaboration-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-left: 3px solid #94a3b8;
+  padding-left: 9px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.collaboration-status span {
+  font-weight: 800;
+}
+
+.collaboration-status small {
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.collaboration-live {
+  border-color: #16a34a;
+}
+
+.collaboration-connecting {
+  border-color: #315ddc;
+}
+
+.collaboration-error {
+  border-color: #dc2626;
+}
+
+.share-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.share-link-row input {
+  min-width: 0;
+  font-size: 12px;
+}
+
+.share-error-banner {
+  margin: 0;
+  border-bottom: 1px solid #fecaca;
+  padding: 9px 16px;
+  background: #fff5f5;
+  color: #b42318;
+  font-size: 14px;
+}
+
 textarea {
   min-height: 160px;
   resize: vertical;

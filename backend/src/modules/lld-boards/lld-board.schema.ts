@@ -52,6 +52,8 @@ const lldBoardSchema = new Schema<LLDBoard>(
     id: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
     ownerId: { type: String, required: true, index: true },
+    collaboratorIds: { type: [String], default: [], index: true },
+    shareToken: { type: String, sparse: true, unique: true },
     classes: { type: [umlClassSchema], default: [] },
     relationships: { type: [relationshipSchema], default: [] },
     createdAt: { type: String, required: true },
