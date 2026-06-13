@@ -254,10 +254,18 @@ button:disabled {
   background: #315ddc;
   box-shadow: 0 0 0 2px #b9c9f8;
   cursor: pointer;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease,
+    scale 120ms ease;
 }
 
-.architecture-node-handle:hover {
-  transform: scale(1.15);
+.architecture-node-handle:hover,
+.architecture-node-handle.connectingfrom,
+.architecture-node-handle.connectingto {
+  background: #1d4ed8;
+  box-shadow: 0 0 0 2px #bfdbfe;
+  scale: 1.15;
 }
 
 .uml-class-node {
