@@ -28,6 +28,7 @@ import { ArchitectureAssistPanel } from "../components/board/ArchitectureAssistP
 import { BoardCanvas } from "../components/board/BoardCanvas";
 import { BoardToolbar } from "../components/board/BoardToolbar";
 import { ContextPanel } from "../components/board/ContextPanel";
+import { CanvasStateOverlay } from "../components/CanvasStateOverlay";
 import { labelForType } from "../components/board/boardLabels";
 import { analyzeHLDGraph } from "../services/aiAdvisorApi";
 import { cleanupArchitectureLayout } from "../services/architectureEngine";
@@ -193,6 +194,8 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved board");
+  const [loadError, setLoadError] = useState("");
+  const [lastLoadAttemptId, setLastLoadAttemptId] = useState<string | null>(null);
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
   const { captureMeasurements, measurementFor } = useNodeMeasurements();
   const collaboration = useBoardCollaboration<BoardGraph>({
@@ -309,6 +312,8 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   }, [selectedElementId, selectedEdgeId]);
 
   async function loadBoard(boardIdToLoad: string, successMessage = "Loaded board") {
+    setLastLoadAttemptId(boardIdToLoad);
+    setLoadError("");
     setSaveStatus("loading");
     setStatusMessage("Loading board...");
 
@@ -339,7 +344,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
         localStorage.removeItem(lastBoardKeyFor(user.id));
       }
       setSaveStatus("error");
-      setStatusMessage(error instanceof Error ? error.message : "Could not load board");
+      const message = error instanceof Error ? error.message : "Could not load board";
+      setLoadError(message);
+      setStatusMessage(message);
     }
   }
 
@@ -462,6 +469,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const loadDemoBoard = () => {
+    setLoadError("");
     setBoardId(null);
     setBoardOwnerId(null);
     setBoardAccessRole(null);
@@ -480,6 +488,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const createBlankBoard = () => {
+    setLoadError("");
     setBoardId(null);
     setBoardOwnerId(null);
     setBoardAccessRole(null);
@@ -636,6 +645,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   }
 
   function applySavedBoard(savedBoard: Awaited<ReturnType<typeof createBoard>>) {
+    setLoadError("");
     setBoardId(savedBoard.id);
     setBoardOwnerId(savedBoard.ownerId);
     setBoardAccessRole(savedBoard.accessRole ?? "owner");
@@ -864,6 +874,39 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           setSelectedEdgeId(null);
         }}
         onCursorMove={collaboration.sendCursor}
+        overlay={
+          saveStatus === "loading" ? (
+            <CanvasStateOverlay
+              description="Fetching the latest diagram and access details."
+              kind="loading"
+              title="Loading board"
+            />
+          ) : loadError ? (
+            <CanvasStateOverlay
+              actionLabel={lastLoadAttemptId ? "Retry" : undefined}
+              description={loadError}
+              kind="error"
+              onAction={
+                lastLoadAttemptId
+                  ? () => void loadBoard(lastLoadAttemptId)
+                  : undefined
+              }
+              title="Board could not be loaded"
+            />
+          ) : graph.elements.length === 0 ? (
+            <CanvasStateOverlay
+              actionLabel={readOnly ? undefined : "Add Service"}
+              description={
+                readOnly
+                  ? "This shared board does not contain any components yet."
+                  : "Add a component to begin mapping your system architecture."
+              }
+              kind="empty"
+              onAction={readOnly ? undefined : () => addNode("service")}
+              title="Start with your first component"
+            />
+          ) : undefined
+        }
         readOnly={readOnly}
         remoteCursors={collaboration.remoteCursors}
       />

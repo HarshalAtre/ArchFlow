@@ -15,17 +15,89 @@ test("guest can start blank HLD and LLD diagrams", async ({ page }) => {
     "Untitled Architecture",
   );
   await expect(page.locator(".architecture-node")).toHaveCount(0);
+  await expect(
+    page.getByText("Start with your first component", { exact: true }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "Service", exact: true }).click();
+  await page.getByRole("button", { name: "Add Service" }).click();
   await expect(page.locator(".architecture-node")).toHaveCount(1);
 
   await page.getByRole("button", { name: "LLD Board" }).click();
   await page.getByRole("button", { name: "New Blank" }).click();
   await expect(page.getByLabel("LLD board name")).toHaveValue("Untitled LLD");
   await expect(page.locator(".uml-class-node")).toHaveCount(0);
+  await expect(
+    page.getByText("Start your UML model", { exact: true }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "Class", exact: true }).click();
+  await page.getByRole("button", { name: "Add Class" }).click();
   await expect(page.locator(".uml-class-node")).toHaveCount(1);
+});
+
+test("failed board loads show an actionable retry state", async ({ page }) => {
+  let attempts = 0;
+  const graph = {
+    elements: [
+      {
+        id: "service-recovered",
+        type: "service",
+        position: { x: 100, y: 100 },
+        size: { width: 180, height: 64 },
+        label: "Recovered Service",
+      },
+    ],
+    edges: [],
+  };
+
+  await mockAuthenticatedSession(page);
+  await page.route("**/api/boards", (route) =>
+    route.fulfill({
+      json: {
+        boards: [
+          {
+            id: "board-retry",
+            name: "Resilient Architecture",
+            ownerId: user.id,
+            accessRole: "owner",
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/boards/board-retry", async (route) => {
+    attempts += 1;
+
+    if (attempts === 1) {
+      await route.fulfill({
+        status: 503,
+        json: { message: "Board service is temporarily unavailable." },
+      });
+      return;
+    }
+
+    await route.fulfill({
+      json: boardResponse("board-retry", "Resilient Architecture", graph),
+    });
+  });
+
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: /Resilient Architecture/ })
+    .click();
+
+  await expect(
+    page.getByText("Board could not be loaded", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator(".canvas-state-error")
+      .getByText("Board service is temporarily unavailable.", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByText("Recovered Service", { exact: true })).toBeVisible();
+  await expect(page.locator(".canvas-state-overlay")).toHaveCount(0);
 });
 
 test("owner can rename, duplicate, and delete an HLD board", async ({

@@ -19,7 +19,7 @@ import {
   ReactFlowProvider,
   getBezierPath,
 } from "@xyflow/react";
-import { RefObject, useEffect } from "react";
+import { ReactNode, RefObject, useEffect } from "react";
 import type { CollaborationCursor } from "../../types/collaboration";
 import { RemoteCursors } from "../RemoteCursors";
 
@@ -59,6 +59,7 @@ type BoardCanvasProps = {
   onReady: (instance: ReactFlowInstance) => void;
   onSelectionClear: () => void;
   onCursorMove: (x: number, y: number) => void;
+  overlay?: ReactNode;
   readOnly?: boolean;
   remoteCursors: CollaborationCursor[];
 };
@@ -77,6 +78,7 @@ export function BoardCanvas({
   onReady,
   onSelectionClear,
   onCursorMove,
+  overlay,
   readOnly = false,
   remoteCursors,
 }: BoardCanvasProps) {
@@ -143,6 +145,7 @@ export function BoardCanvas({
         </ReactFlow>
       </ReactFlowProvider>
       <RemoteCursors cursors={remoteCursors} />
+      {overlay}
     </section>
   );
 }

@@ -669,6 +669,82 @@ h1 {
   color: #b42318;
 }
 
+.board-canvas {
+  position: relative;
+}
+
+.canvas-state-overlay {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.canvas-state-loading,
+.canvas-state-error {
+  background: rgb(246 248 251 / 82%);
+}
+
+.canvas-state-content {
+  display: flex;
+  width: min(360px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgb(23 32 51 / 10%);
+  text-align: center;
+  pointer-events: auto;
+}
+
+.canvas-state-content strong {
+  font-size: 16px;
+}
+
+.canvas-state-content p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.canvas-state-content button {
+  min-width: 120px;
+  margin-top: 3px;
+  padding: 7px 12px;
+}
+
+.canvas-state-error .canvas-state-content {
+  border-color: #fecaca;
+}
+
+.canvas-state-error svg {
+  color: #b42318;
+}
+
+.canvas-state-spinner {
+  color: #315ddc;
+  animation: canvas-state-spin 0.9s linear infinite;
+}
+
+@keyframes canvas-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-state-spinner {
+    animation: none;
+  }
+}
+
 .collaboration-status {
   display: flex;
   flex-direction: column;

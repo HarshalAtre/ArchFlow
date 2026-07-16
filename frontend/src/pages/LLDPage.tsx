@@ -25,6 +25,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { CollaborationStatus } from "../components/CollaborationStatus";
 import { BoardManagementControls } from "../components/BoardManagementControls";
+import { CanvasStateOverlay } from "../components/CanvasStateOverlay";
 import { ContextItemsEditor } from "../components/ContextItemsEditor";
 import { HistoryControls } from "../components/HistoryControls";
 import { RemoteCursors } from "../components/RemoteCursors";
@@ -162,6 +163,8 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
     "idle" | "loading" | "saving" | "saved" | "error"
   >("idle");
   const [statusMessage, setStatusMessage] = useState("Unsaved LLD board");
+  const [loadError, setLoadError] = useState("");
+  const [lastLoadAttemptId, setLastLoadAttemptId] = useState<string | null>(null);
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
   const { captureMeasurements, measurementFor } = useNodeMeasurements();
   const collaboration = useBoardCollaboration<LLDDraft>({
@@ -439,6 +442,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const loadSelectedTemplate = () => {
+    setLoadError("");
     const nextDraft = cloneLLDDraft(selectedTemplate.draft);
 
     resetLLDGraph(nextDraft);
@@ -459,6 +463,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const createBlankLLDBoard = () => {
+    setLoadError("");
     setBoardId(null);
     setBoardOwnerId(null);
     setBoardAccessRole(null);
@@ -576,6 +581,8 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   }
 
   async function loadBoard(boardIdToLoad: string, successMessage = "Loaded saved LLD board") {
+    setLastLoadAttemptId(boardIdToLoad);
+    setLoadError("");
     setSaveStatus("loading");
     setStatusMessage("Loading...");
 
@@ -589,11 +596,14 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
         localStorage.removeItem(lastLLDBoardKeyFor(user.id));
       }
       setSaveStatus("error");
-      setStatusMessage(error instanceof Error ? error.message : "Could not load LLD board");
+      const message = error instanceof Error ? error.message : "Could not load LLD board";
+      setLoadError(message);
+      setStatusMessage(message);
     }
   }
 
   function applySavedBoard(board: LLDBoard) {
+    setLoadError("");
     setBoardId(board.id);
     setBoardOwnerId(board.ownerId);
     setBoardAccessRole(board.accessRole ?? (board.ownerId === user?.id ? "owner" : "editor"));
@@ -849,7 +859,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
     <main className="app-shell lld-shell">
       <aside className="toolbar">
         <div>
-          <p className="eyebrow">LLD Practice</p>
+          <p className="eyebrow">Detailed Design</p>
           <h1>UML Class Designer</h1>
         </div>
 
@@ -965,9 +975,9 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
         </div>
 
         <div className="tool-section">
-          <span className="section-label">Practice Template</span>
+          <span className="section-label">Design Template</span>
           <select
-            aria-label="LLD practice template"
+            aria-label="LLD design template"
             className="text-input"
             value={selectedTemplateId}
             onChange={(event) => setSelectedTemplateId(event.target.value)}
@@ -1084,6 +1094,37 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           </ReactFlow>
         </ReactFlowProvider>
         <RemoteCursors cursors={collaboration.remoteCursors} />
+        {saveStatus === "loading" ? (
+          <CanvasStateOverlay
+            description="Fetching the latest UML model and access details."
+            kind="loading"
+            title="Loading LLD board"
+          />
+        ) : loadError ? (
+          <CanvasStateOverlay
+            actionLabel={lastLoadAttemptId ? "Retry" : undefined}
+            description={loadError}
+            kind="error"
+            onAction={
+              lastLoadAttemptId
+                ? () => void loadBoard(lastLoadAttemptId)
+                : undefined
+            }
+            title="LLD board could not be loaded"
+          />
+        ) : classes.length === 0 ? (
+          <CanvasStateOverlay
+            actionLabel={readOnly ? undefined : "Add Class"}
+            description={
+              readOnly
+                ? "This shared LLD board does not contain any UML types yet."
+                : "Add a class or choose a design template to begin modeling."
+            }
+            kind="empty"
+            onAction={readOnly ? undefined : () => addClass("class")}
+            title="Start your UML model"
+          />
+        ) : null}
       </section>
 
       <aside
@@ -1339,7 +1380,7 @@ function LLDAnalysisPanel({
           ))}
         </div>
       ) : !loading ? (
-        <p className="muted">Run Analyze LLD to get design feedback for interview practice.</p>
+        <p className="muted">Run Analyze LLD to get actionable design feedback.</p>
       ) : null}
     </section>
   );
