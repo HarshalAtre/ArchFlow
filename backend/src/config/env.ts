@@ -16,5 +16,6 @@ export const env = {
   mongoUri: process.env.MONGO_URI,
   nodeEnv,
   port: Number(process.env.PORT ?? 4000),
+  redisUrl: process.env.REDIS_URL,
   webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
 };

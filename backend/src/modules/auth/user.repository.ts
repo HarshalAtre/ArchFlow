@@ -17,6 +17,15 @@ export async function findUserById(userId: string): Promise<User | null> {
   return document ? toUser(document) : null;
 }
 
+export async function findUsersByIds(userIds: string[]): Promise<User[]> {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const documents = await UserModel.find({ id: { $in: userIds } }).lean();
+  return documents.map(toUser);
+}
+
 function toUser(document: User & { _id?: unknown }): User {
   return {
     id: document.id,

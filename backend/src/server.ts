@@ -31,6 +31,8 @@ import {
 } from "./modules/auth/auth.middleware.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { sharingRouter } from "./modules/sharing/sharing.routes.js";
+import { versionRouter } from "./modules/versions/version.routes.js";
+import { recordBoardVersion } from "./modules/versions/version.repository.js";
 import { env } from "./config/env.js";
 import { connectToMongo } from "./database/mongo.js";
 import type { Board, BoardGraph } from "./types/board.js";
@@ -54,9 +56,10 @@ app.use((request: Request, response: Response, next: NextFunction) => {
 
   next();
 });
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "5mb" }));
 app.use("/api/auth", authRouter);
 app.use("/api/shares", sharingRouter);
+app.use("/api/versions", versionRouter);
 
 app.get("/api/health", (_request: Request, response: Response) => {
   response.json({
@@ -80,6 +83,7 @@ app.post("/api/boards", requireAuth, asyncHandler(async (request: Request, respo
     name: typeof request.body?.name === "string" ? request.body.name : "Untitled Board",
     ownerId: user.id,
     collaboratorIds: [],
+    viewerIds: [],
     elements: graph.elements ?? [],
     edges: graph.edges ?? [],
     createdAt: now,
@@ -94,6 +98,14 @@ app.post("/api/boards", requireAuth, asyncHandler(async (request: Request, respo
   }
 
   const createdBoard = await createBoard(board);
+  await recordBoardVersion({
+    action: "created",
+    actorId: user.id,
+    actorName: user.name,
+    boardId: createdBoard.id,
+    graph: { elements: createdBoard.elements, edges: createdBoard.edges },
+    mode: "hld",
+  });
   response.status(201).json(withoutShareToken(createdBoard));
 }));
 
@@ -118,6 +130,11 @@ app.patch("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Requ
     return;
   }
 
+  if (currentBoard.accessRole === "viewer") {
+    response.status(403).json({ message: "This board is view-only." });
+    return;
+  }
+
   const nextBoard: Board = {
     ...currentBoard,
     name: typeof request.body?.name === "string" ? request.body.name : currentBoard.name,
@@ -134,6 +151,16 @@ app.patch("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Requ
   }
 
   const updatedBoard = await updateBoard(nextBoard, user.id);
+  if (updatedBoard) {
+    await recordBoardVersion({
+      action: "saved",
+      actorId: user.id,
+      actorName: user.name,
+      boardId: updatedBoard.id,
+      graph: { elements: updatedBoard.elements, edges: updatedBoard.edges },
+      mode: "hld",
+    });
+  }
   response.json(updatedBoard ? withoutShareToken(updatedBoard) : null);
 }));
 
@@ -164,12 +191,24 @@ app.post("/api/lld-boards", requireAuth, asyncHandler(async (request: Request, r
     name: normalizedBoardName(request.body?.name, "Untitled LLD"),
     ownerId: user.id,
     collaboratorIds: [],
+    viewerIds: [],
     ...graph,
     createdAt: now,
     updatedAt: now,
   };
 
   const createdBoard = await createLLDBoard(board);
+  await recordBoardVersion({
+    action: "created",
+    actorId: user.id,
+    actorName: user.name,
+    boardId: createdBoard.id,
+    graph: {
+      classes: createdBoard.classes,
+      relationships: createdBoard.relationships,
+    },
+    mode: "lld",
+  });
   response.status(201).json(withoutShareToken(createdBoard));
 }));
 
@@ -194,6 +233,11 @@ app.patch("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: 
     return;
   }
 
+  if (currentBoard.accessRole === "viewer") {
+    response.status(403).json({ message: "This LLD board is view-only." });
+    return;
+  }
+
   const nextBoard: LLDBoard = {
     ...currentBoard,
     name: normalizedBoardName(request.body?.name, currentBoard.name),
@@ -211,6 +255,19 @@ app.patch("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: 
   }
 
   const updatedBoard = await updateLLDBoard(nextBoard, user.id);
+  if (updatedBoard) {
+    await recordBoardVersion({
+      action: "saved",
+      actorId: user.id,
+      actorName: user.name,
+      boardId: updatedBoard.id,
+      graph: {
+        classes: updatedBoard.classes,
+        relationships: updatedBoard.relationships,
+      },
+      mode: "lld",
+    });
+  }
   response.json(updatedBoard ? withoutShareToken(updatedBoard) : null);
 }));
 
@@ -288,7 +345,7 @@ async function bootstrap(): Promise<void> {
   await connectToMongo(env.mongoUri);
 
   const httpServer = createServer(app);
-  attachCollaborationGateway(httpServer);
+  await attachCollaborationGateway(httpServer);
 
   httpServer.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);

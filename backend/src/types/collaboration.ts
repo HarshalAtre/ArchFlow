@@ -1,5 +1,5 @@
 import type { AuthUser } from "./auth.js";
-import type { BoardGraph } from "./board.js";
+import type { BoardAccessRole, BoardGraph } from "./board.js";
 import type { LLDGraph } from "./lld.js";
 
 export type CollaborationMode = "hld" | "lld";
@@ -22,6 +22,18 @@ export type CollaborationSnapshot = CollaborationUpdatePayload & {
   revision: number;
 };
 
+export type CollaborationCursor = JoinCollaborationPayload & {
+  userId: string;
+  userName: string;
+  x: number;
+  y: number;
+};
+
+export type CollaborationCursorPayload = JoinCollaborationPayload & {
+  x: number;
+  y: number;
+};
+
 export type CollaborationAck =
   | { ok: true; revision: number }
   | { ok: false; message: string };
@@ -32,6 +44,7 @@ export type CollaborationServerEvents = {
     participants: CollaborationParticipant[],
   ) => void;
   "collaboration:snapshot": (snapshot: CollaborationSnapshot) => void;
+  "collaboration:cursor": (cursor: CollaborationCursor) => void;
 };
 
 export type CollaborationClientEvents = {
@@ -44,9 +57,11 @@ export type CollaborationClientEvents = {
     payload: CollaborationUpdatePayload,
     acknowledge: (result: CollaborationAck) => void,
   ) => void;
+  "collaboration:cursor": (payload: CollaborationCursorPayload) => void;
 };
 
 export type CollaborationSocketData = {
+  accessRole?: BoardAccessRole;
   roomKey?: string;
   user: AuthUser;
 };

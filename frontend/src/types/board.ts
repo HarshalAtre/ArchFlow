@@ -21,17 +21,34 @@ export type Size = {
 
 export type BoardElementMetadata = {
   apiEndpoint?: string;
+  contextItems?: ContextItem[];
   links?: string;
   notes?: string;
   owner?: string;
   [key: string]: unknown;
 };
 
+export type ContextItem = {
+  id: string;
+  type: "link" | "snippet" | "file";
+  title: string;
+  url?: string;
+  content?: string;
+  language?: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+  dataUrl?: string;
+};
+
+export type BoardAccessRole = "owner" | "editor" | "viewer";
+
 export type RecentBoard = {
   id: string;
   name: string;
   ownerId: string;
   updatedAt: string;
+  accessRole?: BoardAccessRole;
 };
 
 export type BoardElement = {
@@ -61,6 +78,8 @@ export type Board = BoardGraph & {
   name: string;
   ownerId: string;
   collaboratorIds: string[];
+  viewerIds: string[];
+  accessRole?: BoardAccessRole;
   createdAt: string;
   updatedAt: string;
 };

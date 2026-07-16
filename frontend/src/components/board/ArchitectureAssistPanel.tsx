@@ -6,6 +6,7 @@ type ArchitectureAssistPanelProps = {
   source: AnalysisSource | null;
   suggestions: HLDAnalysisSuggestion[];
   onApplySuggestion: (suggestion: HLDAnalysisSuggestion) => void;
+  readOnly?: boolean;
 };
 
 export function ArchitectureAssistPanel({
@@ -14,6 +15,7 @@ export function ArchitectureAssistPanel({
   source,
   suggestions,
   onApplySuggestion,
+  readOnly = false,
 }: ArchitectureAssistPanelProps) {
   return (
     <section>
@@ -33,7 +35,7 @@ export function ArchitectureAssistPanel({
               <strong>{suggestion.title}</strong>
               <p>{suggestion.description}</p>
               {suggestion.action ? (
-                <button type="button" onClick={() => onApplySuggestion(suggestion)}>
+                <button type="button" disabled={readOnly} onClick={() => onApplySuggestion(suggestion)}>
                   Add {suggestion.action.label}
                 </button>
               ) : null}

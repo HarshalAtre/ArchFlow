@@ -1,3 +1,5 @@
+import type { BoardAccessRole, ContextItem } from "./board";
+
 export type UmlVisibility = "+" | "-" | "#" | "~";
 
 export type UmlMember = {
@@ -19,6 +21,7 @@ export type UmlClass = {
   attributes: UmlMember[];
   methods: UmlMember[];
   responsibility: string;
+  contextItems?: ContextItem[];
 };
 
 export type UmlRelationshipKind =
@@ -53,6 +56,8 @@ export type LLDBoard = LLDDraft & {
   name: string;
   ownerId: string;
   collaboratorIds: string[];
+  viewerIds: string[];
+  accessRole?: BoardAccessRole;
   createdAt: string;
   updatedAt: string;
 };
@@ -62,6 +67,7 @@ export type RecentLLDBoard = {
   name: string;
   ownerId: string;
   updatedAt: string;
+  accessRole?: BoardAccessRole;
 };
 
 export type LLDTemplate = {

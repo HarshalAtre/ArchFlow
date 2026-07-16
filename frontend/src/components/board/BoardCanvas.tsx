@@ -20,6 +20,8 @@ import {
   getBezierPath,
 } from "@xyflow/react";
 import { RefObject, useEffect } from "react";
+import type { CollaborationCursor } from "../../types/collaboration";
+import { RemoteCursors } from "../RemoteCursors";
 
 type ArchitectureNodeData = {
   contextBadges: string[];
@@ -56,6 +58,9 @@ type BoardCanvasProps = {
   onNodesChange: (changes: NodeChange[]) => void;
   onReady: (instance: ReactFlowInstance) => void;
   onSelectionClear: () => void;
+  onCursorMove: (x: number, y: number) => void;
+  readOnly?: boolean;
+  remoteCursors: CollaborationCursor[];
 };
 
 export function BoardCanvas({
@@ -71,6 +76,9 @@ export function BoardCanvas({
   onNodesChange,
   onReady,
   onSelectionClear,
+  onCursorMove,
+  readOnly = false,
+  remoteCursors,
 }: BoardCanvasProps) {
   useEffect(() => {
     const selectNodeFromPointer = (event: PointerEvent) => {
@@ -88,7 +96,17 @@ export function BoardCanvas({
   }, [onNodeSelect]);
 
   return (
-    <section ref={canvasRef} className="board-canvas">
+    <section
+      ref={canvasRef}
+      className="board-canvas"
+      onPointerMove={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        onCursorMove(
+          Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+          Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+        );
+      }}
+    >
       <ReactFlowProvider>
         <ReactFlow
           nodes={nodes}
@@ -116,12 +134,15 @@ export function BoardCanvas({
           edgeTypes={customEdgeTypes}
           nodeTypes={customNodeTypes}
           fitView
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
         >
           <Background />
           <MiniMap />
           <Controls />
         </ReactFlow>
       </ReactFlowProvider>
+      <RemoteCursors cursors={remoteCursors} />
     </section>
   );
 }

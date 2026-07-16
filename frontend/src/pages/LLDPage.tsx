@@ -24,9 +24,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
 import { CollaborationStatus } from "../components/CollaborationStatus";
+import { ContextItemsEditor } from "../components/ContextItemsEditor";
 import { HistoryControls } from "../components/HistoryControls";
+import { RemoteCursors } from "../components/RemoteCursors";
 import { ShareBoardControl } from "../components/ShareBoardControl";
 import { TransferControls } from "../components/TransferControls";
+import { VersionHistory } from "../components/VersionHistory";
 import {
   isEditableHistoryTarget,
   useUndoRedo,
@@ -57,6 +60,9 @@ import {
   getDefaultLLDDraft,
   lldTemplates,
 } from "../services/lldTemplates";
+import type {
+  BoardAccessRole,
+} from "../types/board";
 import type {
   LLDBoard,
   LLDDraft,
@@ -127,6 +133,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   const initialDraft = useMemo(() => readLLDDraft(), []);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardOwnerId, setBoardOwnerId] = useState<string | null>(null);
+  const [boardAccessRole, setBoardAccessRole] = useState<BoardAccessRole | null>(null);
   const [boardName, setBoardName] = useState("Order Platform LLD");
   const {
     beginTransaction,
@@ -167,6 +174,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
       setStatusMessage("Live changes received");
     },
   });
+  const readOnly = boardAccessRole === "viewer";
 
   const nodes = useMemo(
     () =>
@@ -229,6 +237,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
       setRecentBoards([]);
       setBoardId(null);
       setBoardOwnerId(null);
+      setBoardAccessRole(null);
       setSaveStatus("idle");
       setStatusMessage("Unsaved LLD board");
       return;
@@ -281,6 +290,9 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   }, [classes, selectedClassId]);
 
   const handleNodesChange = (changes: NodeChange[]) => {
+    if (readOnly) {
+      return;
+    }
     captureMeasurements(changes);
     const graphChanges = changes.filter(isGraphNodeChange);
 
@@ -313,6 +325,9 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const handleConnect = (connection: Connection) => {
+    if (readOnly) {
+      return;
+    }
     if (!connection.source || !connection.target || connection.source === connection.target) {
       return;
     }
@@ -339,6 +354,9 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const addClass = (kind: UmlClassKind = "class") => {
+    if (readOnly) {
+      return;
+    }
     const nextClass: UmlClass = {
       id: `uml-${crypto.randomUUID()}`,
       kind,
@@ -359,7 +377,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const updateSelectedClass = (updates: Partial<UmlClass>) => {
-    if (!selectedClassId) {
+    if (!selectedClassId || readOnly) {
       return;
     }
 
@@ -373,7 +391,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const deleteSelectedClass = () => {
-    if (!selectedClassId) {
+    if (!selectedClassId || readOnly) {
       return;
     }
 
@@ -389,7 +407,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const updateSelectedRelationship = (updates: Partial<UmlRelationship>) => {
-    if (!selectedRelationshipId) {
+    if (!selectedRelationshipId || readOnly) {
       return;
     }
 
@@ -403,7 +421,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   };
 
   const deleteSelectedRelationship = () => {
-    if (!selectedRelationshipId) {
+    if (!selectedRelationshipId || readOnly) {
       return;
     }
 
@@ -428,6 +446,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
     setAnalysisError("");
     setBoardId(null);
     setBoardOwnerId(null);
+    setBoardAccessRole(null);
     setBoardName(`${selectedTemplate.name} LLD`);
     if (user) {
       localStorage.removeItem(lastLLDBoardKeyFor(user.id));
@@ -496,6 +515,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   function applySavedBoard(board: LLDBoard) {
     setBoardId(board.id);
     setBoardOwnerId(board.ownerId);
+    setBoardAccessRole(board.accessRole ?? (board.ownerId === user?.id ? "owner" : "editor"));
     setBoardName(board.name);
     resetLLDGraph({
       classes: board.classes,
@@ -572,6 +592,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
 
       setBoardId(null);
       setBoardOwnerId(null);
+      setBoardAccessRole(null);
       setBoardName(transferFile.name);
       resetLLDGraph(transferFile.graph);
       setSelectedClassId(null);
@@ -633,6 +654,10 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   }
 
   function applySuggestion(suggestion: LLDAnalysisSuggestion) {
+    if (readOnly) {
+      return;
+    }
+
     const action = suggestion.action;
 
     if (!action) {
@@ -754,6 +779,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
             <input
               aria-label="LLD board name"
               className="text-input"
+              disabled={readOnly}
               value={boardName}
               onChange={(event) => {
                 setBoardName(event.target.value);
@@ -764,7 +790,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           <button
             type="button"
             className="primary-button"
-            disabled={saveStatus === "loading" || saveStatus === "saving"}
+            disabled={readOnly || saveStatus === "loading" || saveStatus === "saving"}
             onClick={() => void handleSaveBoard()}
           >
             {boardId ? "Update LLD Board" : "Save LLD Board"}
@@ -787,7 +813,9 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           />
           {!boardId || (user && boardOwnerId === user.id) ? (
             <ShareBoardControl
-              onCreateLink={async () => {
+              boardId={boardId}
+              mode="lld"
+              onCreateLink={async (role) => {
                 if (!user) {
                   requestAuth("Sign in to save and share this LLD board.");
                   throw new Error("Sign in to continue sharing.");
@@ -800,10 +828,25 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
                 }
 
                 const savedBoard = await saveBoardToCloud();
-                return createShareLink("lld", savedBoard.id);
+                return {
+                  boardId: savedBoard.id,
+                  shareUrl: await createShareLink("lld", savedBoard.id, role),
+                };
               }}
             />
           ) : null}
+          <VersionHistory
+            boardId={boardId}
+            canRestore={!readOnly}
+            mode="lld"
+            onRestore={(graph) => {
+              resetLLDGraph(graph as LLDDraft);
+              setSelectedClassId(null);
+              setSelectedRelationshipId(null);
+              setSaveStatus("saved");
+              setStatusMessage("Version restored");
+            }}
+          />
           {recentBoards.length > 0 ? (
             <div className="recent-board-list">
               {recentBoards.map((board) => (
@@ -847,16 +890,16 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
         <div className="tool-section">
           <span className="section-label">Add UML Type</span>
           <div className="button-grid">
-            <button type="button" onClick={() => addClass("class")}>
+            <button type="button" disabled={readOnly} onClick={() => addClass("class")}>
               Class
             </button>
-            <button type="button" onClick={() => addClass("interface")}>
+            <button type="button" disabled={readOnly} onClick={() => addClass("interface")}>
               Interface
             </button>
-            <button type="button" onClick={() => addClass("abstract")}>
+            <button type="button" disabled={readOnly} onClick={() => addClass("abstract")}>
               Abstract Class
             </button>
-            <button type="button" onClick={() => addClass("enum")}>
+            <button type="button" disabled={readOnly} onClick={() => addClass("enum")}>
               Enum
             </button>
           </div>
@@ -865,8 +908,8 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
         <div className="tool-section">
           <span className="section-label">Review</span>
           <HistoryControls
-            canRedo={canRedo}
-            canUndo={canUndo}
+            canRedo={!readOnly && canRedo}
+            canUndo={!readOnly && canUndo}
             onRedo={handleRedo}
             onUndo={handleUndo}
           />
@@ -900,7 +943,17 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
         </div>
       </aside>
 
-      <section ref={canvasRef} className="board-canvas">
+      <section
+        ref={canvasRef}
+        className="board-canvas"
+        onPointerMove={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          collaboration.sendCursor(
+            Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+            Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+          );
+        }}
+      >
         <ReactFlowProvider>
           <ReactFlow
             nodes={nodes}
@@ -925,12 +978,15 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
               setSelectedRelationshipId(null);
             }}
             fitView
+            nodesDraggable={!readOnly}
+            nodesConnectable={!readOnly}
           >
             <Background />
             <MiniMap />
             <Controls />
           </ReactFlow>
         </ReactFlowProvider>
+        <RemoteCursors cursors={collaboration.remoteCursors} />
       </section>
 
       <aside
@@ -953,6 +1009,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           onDeleteClass={deleteSelectedClass}
           onDeleteRelationship={deleteSelectedRelationship}
           onRelationshipChange={updateSelectedRelationship}
+          readOnly={readOnly}
         />
         <LLDAnalysisPanel
           error={analysisError}
@@ -960,6 +1017,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           source={analysisSource}
           suggestions={suggestions}
           onApplySuggestion={applySuggestion}
+          readOnly={readOnly}
         />
       </aside>
     </main>
@@ -973,6 +1031,7 @@ type LLDContextPanelProps = {
   onDeleteClass: () => void;
   onDeleteRelationship: () => void;
   onRelationshipChange: (updates: Partial<UmlRelationship>) => void;
+  readOnly?: boolean;
 };
 
 function LLDContextPanel({
@@ -982,6 +1041,7 @@ function LLDContextPanel({
   onDeleteClass,
   onDeleteRelationship,
   onRelationshipChange,
+  readOnly = false,
 }: LLDContextPanelProps) {
   if (selectedRelationship) {
     return (
@@ -992,6 +1052,7 @@ function LLDContextPanel({
             <span>Relation Type</span>
             <select
               className="text-input"
+              disabled={readOnly}
               value={selectedRelationship.kind}
               onChange={(event) =>
                 onRelationshipChange({ kind: event.target.value as UmlRelationshipKind })
@@ -1009,6 +1070,7 @@ function LLDContextPanel({
             <span>Label</span>
             <input
               className="text-input"
+              disabled={readOnly}
               value={selectedRelationship.label}
               onChange={(event) => onRelationshipChange({ label: event.target.value })}
               placeholder="uses, owns, creates..."
@@ -1020,6 +1082,7 @@ function LLDContextPanel({
               <span>Source</span>
               <input
                 className="text-input"
+                disabled={readOnly}
                 value={selectedRelationship.sourceMultiplicity}
                 onChange={(event) =>
                   onRelationshipChange({ sourceMultiplicity: event.target.value })
@@ -1031,6 +1094,7 @@ function LLDContextPanel({
               <span>Target</span>
               <input
                 className="text-input"
+                disabled={readOnly}
                 value={selectedRelationship.targetMultiplicity}
                 onChange={(event) =>
                   onRelationshipChange({ targetMultiplicity: event.target.value })
@@ -1042,7 +1106,7 @@ function LLDContextPanel({
 
           <p className="status-text">{descriptionForRelationshipKind(selectedRelationship.kind)}</p>
 
-          <button type="button" className="danger-button" onClick={onDeleteRelationship}>
+          <button type="button" className="danger-button" disabled={readOnly} onClick={onDeleteRelationship}>
             Delete relationship
           </button>
         </div>
@@ -1067,6 +1131,7 @@ function LLDContextPanel({
           <span>Type</span>
           <select
             className="text-input"
+            disabled={readOnly}
             value={selectedClass.kind}
             onChange={(event) => onClassChange({ kind: event.target.value as UmlClassKind })}
           >
@@ -1083,6 +1148,7 @@ function LLDContextPanel({
           <input
             aria-label="Selected UML class name"
             className="text-input"
+            disabled={readOnly}
             value={selectedClass.name}
             onChange={(event) => onClassChange({ name: event.target.value })}
           />
@@ -1093,6 +1159,7 @@ function LLDContextPanel({
           members={selectedClass.attributes}
           emptyText="Interfaces and enums can skip attributes."
           onMembersChange={(attributes) => onClassChange({ attributes })}
+          disabled={readOnly}
         />
 
         <MemberEditor
@@ -1100,19 +1167,27 @@ function LLDContextPanel({
           members={selectedClass.methods}
           emptyText="Add operations that express behavior."
           onMembersChange={(methods) => onClassChange({ methods })}
+          disabled={readOnly}
         />
 
         <label className="field-group">
           <span>Responsibility</span>
           <textarea
             className="compact-textarea"
+            disabled={readOnly}
             value={selectedClass.responsibility}
             onChange={(event) => onClassChange({ responsibility: event.target.value })}
             placeholder="What does this class own? Which reason should make it change?"
           />
         </label>
 
-        <button type="button" className="danger-button" onClick={onDeleteClass}>
+        <ContextItemsEditor
+          disabled={readOnly}
+          items={selectedClass.contextItems ?? []}
+          onChange={(contextItems) => onClassChange({ contextItems })}
+        />
+
+        <button type="button" className="danger-button" disabled={readOnly} onClick={onDeleteClass}>
           Delete UML type
         </button>
       </div>
@@ -1126,6 +1201,7 @@ type LLDAnalysisPanelProps = {
   source: AnalysisSource | null;
   suggestions: LLDAnalysisSuggestion[];
   onApplySuggestion: (suggestion: LLDAnalysisSuggestion) => void;
+  readOnly?: boolean;
 };
 
 function LLDAnalysisPanel({
@@ -1134,6 +1210,7 @@ function LLDAnalysisPanel({
   source,
   suggestions,
   onApplySuggestion,
+  readOnly = false,
 }: LLDAnalysisPanelProps) {
   return (
     <section>
@@ -1155,6 +1232,7 @@ function LLDAnalysisPanel({
               {suggestion.action ? (
                 <button
                   type="button"
+                  disabled={readOnly}
                   onClick={() => onApplySuggestion(suggestion)}
                 >
                   {labelForLLDAction(suggestion.action)}
@@ -1171,13 +1249,20 @@ function LLDAnalysisPanel({
 }
 
 type MemberEditorProps = {
+  disabled?: boolean;
   emptyText: string;
   label: string;
   members: UmlMember[];
   onMembersChange: (members: UmlMember[]) => void;
 };
 
-function MemberEditor({ emptyText, label, members, onMembersChange }: MemberEditorProps) {
+function MemberEditor({
+  disabled = false,
+  emptyText,
+  label,
+  members,
+  onMembersChange,
+}: MemberEditorProps) {
   const updateMember = (memberId: string, updates: Partial<UmlMember>) => {
     onMembersChange(
       members.map((member) => (member.id === memberId ? { ...member, ...updates } : member)),
@@ -1194,6 +1279,7 @@ function MemberEditor({ emptyText, label, members, onMembersChange }: MemberEdit
               <select
                 aria-label={`${label} visibility`}
                 className="text-input uml-visibility-select"
+                disabled={disabled}
                 value={member.visibility}
                 onChange={(event) =>
                   updateMember(member.id, { visibility: event.target.value as UmlVisibility })
@@ -1208,12 +1294,14 @@ function MemberEditor({ emptyText, label, members, onMembersChange }: MemberEdit
               <input
                 aria-label={`${label} signature`}
                 className="text-input"
+                disabled={disabled}
                 value={member.signature}
                 onChange={(event) => updateMember(member.id, { signature: event.target.value })}
               />
               <button
                 type="button"
                 className="danger-button uml-member-remove"
+                disabled={disabled}
                 onClick={() => onMembersChange(members.filter((currentMember) => currentMember.id !== member.id))}
               >
                 Remove
@@ -1224,7 +1312,7 @@ function MemberEditor({ emptyText, label, members, onMembersChange }: MemberEdit
       ) : (
         <p className="status-text">{emptyText}</p>
       )}
-      <button type="button" onClick={() => onMembersChange([...members, createMember("+", "")])}>
+      <button type="button" disabled={disabled} onClick={() => onMembersChange([...members, createMember("+", "")])}>
         Add {label.slice(0, -1)}
       </button>
     </div>

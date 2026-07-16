@@ -186,6 +186,39 @@ button:disabled {
   font-weight: 700;
 }
 
+.password-input-wrapper {
+  position: relative;
+  display: block;
+}
+
+.password-input-wrapper .text-input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  width: 34px;
+  min-height: 30px;
+  place-items: center;
+  transform: translateY(-50%);
+  border-color: transparent;
+  background: transparent;
+  color: #475569;
+}
+
+.password-toggle:hover {
+  border-color: #c9d3e5;
+  color: #1d4ed8;
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid #315ddc;
+  outline-offset: 1px;
+}
+
 .auth-guest-note {
   text-align: center;
 }
@@ -209,7 +242,40 @@ button:disabled {
 }
 
 .board-canvas {
+  position: relative;
   min-height: calc(100vh - 58px);
+}
+
+.remote-cursor-layer {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.remote-cursor {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  transform: translate(-2px, -2px);
+}
+
+.remote-cursor span {
+  width: 0;
+  height: 0;
+  border-top: 10px solid #111827;
+  border-right: 7px solid transparent;
+}
+
+.remote-cursor small {
+  margin: 8px 0 0 2px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .react-flow__node {
@@ -630,6 +696,13 @@ h1 {
   gap: 8px;
 }
 
+.share-action-row,
+.split-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
 .share-link-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -639,6 +712,67 @@ h1 {
 .share-link-row input {
   min-width: 0;
   font-size: 12px;
+}
+
+.collaborator-list,
+.version-list,
+.context-item-list,
+.context-item-form,
+.context-items-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.collaborator-row,
+.version-row,
+.context-item {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d8e0ee;
+  border-radius: 8px;
+  padding: 9px;
+  background: #ffffff;
+}
+
+.collaborator-row div,
+.version-row div,
+.context-item > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collaborator-row small,
+.version-row small,
+.context-item small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.version-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.context-item pre {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  border-radius: 6px;
+  padding: 8px;
+  background: #172033;
+  color: #f8fafc;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.field-label {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .share-error-banner {

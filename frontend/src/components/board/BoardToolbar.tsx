@@ -1,4 +1,4 @@
-import type { BoardElementType, RecentBoard } from "../../types/board";
+import type { BoardElementType, BoardGraph, RecentBoard } from "../../types/board";
 import type {
   CollaborationParticipant,
   CollaborationStatus as CollaborationState,
@@ -8,6 +8,8 @@ import { CollaborationStatus } from "../CollaborationStatus";
 import { HistoryControls } from "../HistoryControls";
 import { ShareBoardControl } from "../ShareBoardControl";
 import { TransferControls } from "../TransferControls";
+import { VersionHistory } from "../VersionHistory";
+import type { ShareRole } from "../../services/sharingApi";
 import { labelForType } from "./boardLabels";
 
 type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
@@ -26,6 +28,7 @@ type BoardToolbarProps = {
   currentUserId: string | null;
   nodeTypes: BoardElementType[];
   recentBoards: RecentBoard[];
+  readOnly: boolean;
   saveStatus: SaveStatus;
   statusMessage: string;
   onAddNode: (type: BoardElementType) => void;
@@ -40,7 +43,10 @@ type BoardToolbarProps = {
   onLoadBoard: (boardId: string) => void;
   onRedo: () => void;
   onSaveBoard: () => void;
-  onCreateShareLink: () => Promise<string>;
+  onCreateShareLink: (
+    role: ShareRole,
+  ) => Promise<{ boardId: string; shareUrl: string }>;
+  onRestoreVersion: (graph: BoardGraph) => void;
   onUndo: () => void;
 };
 
@@ -58,6 +64,7 @@ export function BoardToolbar({
   currentUserId,
   nodeTypes,
   recentBoards,
+  readOnly,
   saveStatus,
   statusMessage,
   onAddNode,
@@ -73,6 +80,7 @@ export function BoardToolbar({
   onRedo,
   onSaveBoard,
   onCreateShareLink,
+  onRestoreVersion,
   onUndo,
 }: BoardToolbarProps) {
   return (
@@ -109,13 +117,14 @@ export function BoardToolbar({
         <input
           aria-label="Board name"
           className="text-input"
+          disabled={readOnly}
           value={boardName}
           onChange={(event) => onBoardNameChange(event.target.value)}
         />
         <button
           type="button"
           className="primary-button"
-          disabled={saveStatus === "saving" || saveStatus === "loading"}
+          disabled={readOnly || saveStatus === "saving" || saveStatus === "loading"}
           onClick={onSaveBoard}
         >
           {saveStatus === "saving" ? "Saving..." : "Save Board"}
@@ -130,8 +139,18 @@ export function BoardToolbar({
           status={collaborationStatus}
         />
         {canShare ? (
-          <ShareBoardControl onCreateLink={onCreateShareLink} />
+          <ShareBoardControl
+            boardId={boardId}
+            mode="hld"
+            onCreateLink={onCreateShareLink}
+          />
         ) : null}
+        <VersionHistory
+          boardId={boardId}
+          canRestore={!readOnly}
+          mode="hld"
+          onRestore={(graph) => onRestoreVersion(graph as BoardGraph)}
+        />
         <button type="button" onClick={onLoadDemoBoard}>
           Load Demo Board
         </button>
@@ -141,7 +160,7 @@ export function BoardToolbar({
         <span className="section-label">Add Component</span>
         <div className="button-grid">
           {nodeTypes.map((type) => (
-            <button key={type} type="button" onClick={() => onAddNode(type)}>
+            <button key={type} type="button" disabled={readOnly} onClick={() => onAddNode(type)}>
               {labelForType(type)}
             </button>
           ))}
@@ -156,7 +175,7 @@ export function BoardToolbar({
           onRedo={onRedo}
           onUndo={onUndo}
         />
-        <button type="button" onClick={onCleanUp}>
+        <button type="button" disabled={readOnly} onClick={onCleanUp}>
           Clean Up
         </button>
         <button type="button" disabled={analyzing} onClick={onAnalyze}>

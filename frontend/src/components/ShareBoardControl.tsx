@@ -1,25 +1,69 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import {
+  changeCollaboratorRole,
+  getCollaborationAccess,
+  removeCollaborator,
+  revokeShareLink,
+  type Collaborator,
+  type ShareMode,
+  type ShareRole,
+} from "../services/sharingApi";
 
 type ShareBoardControlProps = {
-  onCreateLink: () => Promise<string>;
+  boardId: string | null;
+  mode: ShareMode;
+  onCreateLink: (
+    role: ShareRole,
+  ) => Promise<{ boardId: string; shareUrl: string }>;
 };
 
 export function ShareBoardControl({
+  boardId,
+  mode,
   onCreateLink,
 }: ShareBoardControlProps) {
+  const [activeBoardId, setActiveBoardId] = useState(boardId);
   const [shareUrl, setShareUrl] = useState("");
+  const [role, setRole] = useState<ShareRole>("editor");
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    setActiveBoardId(boardId);
+    if (expanded && boardId) {
+      void refreshAccess(boardId);
+    }
+  }, [boardId, expanded, mode]);
+
+  async function refreshAccess(id = activeBoardId) {
+    if (!id) {
+      return;
+    }
+    try {
+      const access = await getCollaborationAccess(mode, id);
+      setCollaborators(access.collaborators);
+      if (access.linkRole) {
+        setRole(access.linkRole);
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not load access.");
+    }
+  }
 
   async function handleCreateLink() {
     setLoading(true);
     setStatus("");
 
     try {
-      const nextShareUrl = await onCreateLink();
-      setShareUrl(nextShareUrl);
-      await copyShareUrl(nextShareUrl);
-      setStatus("Share link copied");
+      const result = await onCreateLink(role);
+      setActiveBoardId(result.boardId);
+      setShareUrl(result.shareUrl);
+      await copyShareUrl(result.shareUrl);
+      setStatus(`${role === "editor" ? "Editor" : "Viewer"} link copied`);
+      await refreshAccess(result.boardId);
     } catch (error) {
       setStatus(
         error instanceof Error ? error.message : "Could not create share link",
@@ -29,20 +73,61 @@ export function ShareBoardControl({
     }
   }
 
-  async function handleCopy() {
+  async function handleRevoke() {
+    if (!activeBoardId) {
+      return;
+    }
     try {
-      await copyShareUrl(shareUrl);
-      setStatus("Share link copied");
-    } catch {
-      setStatus("Select and copy the link below");
+      await revokeShareLink(mode, activeBoardId);
+      setShareUrl("");
+      setStatus("Share link revoked");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not revoke link.");
+    }
+  }
+
+  async function updateRole(collaborator: Collaborator, nextRole: ShareRole) {
+    if (!activeBoardId) {
+      return;
+    }
+    try {
+      await changeCollaboratorRole(mode, activeBoardId, collaborator.id, nextRole);
+      await refreshAccess();
+      setStatus(`${collaborator.name} is now a ${nextRole}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not change role.");
+    }
+  }
+
+  async function remove(collaborator: Collaborator) {
+    if (!activeBoardId) {
+      return;
+    }
+    try {
+      await removeCollaborator(mode, activeBoardId, collaborator.id);
+      await refreshAccess();
+      setStatus(`${collaborator.name} removed`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove access.");
     }
   }
 
   return (
     <div className="share-control">
-      <button type="button" disabled={loading} onClick={handleCreateLink}>
-        {loading ? "Creating link..." : "Share Board"}
-      </button>
+      <div className="share-action-row">
+        <select
+          aria-label="Share access role"
+          className="text-input"
+          value={role}
+          onChange={(event) => setRole(event.target.value as ShareRole)}
+        >
+          <option value="editor">Can edit</option>
+          <option value="viewer">View only</option>
+        </select>
+        <button type="button" disabled={loading} onClick={handleCreateLink}>
+          {loading ? "Creating..." : "Share Board"}
+        </button>
+      </div>
       {shareUrl ? (
         <div className="share-link-row">
           <input
@@ -52,9 +137,55 @@ export function ShareBoardControl({
             value={shareUrl}
             onFocus={(event) => event.currentTarget.select()}
           />
-          <button type="button" onClick={handleCopy}>
+          <button type="button" onClick={() => void copyShareUrl(shareUrl)}>
             Copy
           </button>
+        </div>
+      ) : null}
+      {activeBoardId ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Hide Access" : "Manage Access"}
+        </button>
+      ) : null}
+      {expanded ? (
+        <div className="collaborator-list">
+          <button type="button" className="danger-button" onClick={() => void handleRevoke()}>
+            Revoke Link
+          </button>
+          {collaborators.map((collaborator) => (
+            <article key={collaborator.id} className="collaborator-row">
+              <div>
+                <strong>{collaborator.name}</strong>
+                <small>{collaborator.email}</small>
+              </div>
+              <select
+                className="text-input"
+                value={collaborator.role}
+                onChange={(event) =>
+                  void updateRole(
+                    collaborator,
+                    event.target.value as ShareRole,
+                  )
+                }
+              >
+                <option value="editor">Editor</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => void remove(collaborator)}
+              >
+                Remove
+              </button>
+            </article>
+          ))}
+          {collaborators.length === 0 ? (
+            <p className="status-text">No collaborators have joined yet.</p>
+          ) : null}
         </div>
       ) : null}
       {status ? <p className="status-text">{status}</p> : null}
@@ -66,6 +197,5 @@ async function copyShareUrl(shareUrl: string): Promise<void> {
   if (!navigator.clipboard) {
     throw new Error("Clipboard access is unavailable.");
   }
-
   await navigator.clipboard.writeText(shareUrl);
 }

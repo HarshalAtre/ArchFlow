@@ -47,6 +47,7 @@ import {
 import { createShareLink } from "../services/sharingApi";
 import type {
   BoardEdge,
+  BoardAccessRole,
   BoardElement,
   BoardElementMetadata,
   BoardElementType,
@@ -168,6 +169,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   const loadedRequestedBoardRef = useRef<string | null>(null);
   const [boardId, setBoardId] = useState<string | null>(null);
   const [boardOwnerId, setBoardOwnerId] = useState<string | null>(null);
+  const [boardAccessRole, setBoardAccessRole] = useState<BoardAccessRole | null>(null);
   const [boardName, setBoardName] = useState(demoBoardName);
   const {
     beginTransaction,
@@ -204,6 +206,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
       setStatusMessage("Live changes received");
     },
   });
+  const readOnly = boardAccessRole === "viewer";
 
   const nodes = useMemo(
     () =>
@@ -220,9 +223,15 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   const edges = useMemo(
     () =>
       graph.edges.map((edge) =>
-        toFlowEdge(edge, edge.id === selectedEdgeId, deleteEdge, selectEdge),
+        toFlowEdge(
+          edge,
+          edge.id === selectedEdgeId,
+          deleteEdge,
+          selectEdge,
+          readOnly,
+        ),
       ),
-    [graph.edges, selectedEdgeId],
+    [graph.edges, selectedEdgeId, readOnly],
   );
   const selectedElement = graph.elements.find((element) => element.id === selectedElementId);
   const selectedEdge = graph.edges.find((edge) => edge.id === selectedEdgeId);
@@ -241,6 +250,8 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
       setRecentBoards([]);
       setBoardId(null);
       setBoardOwnerId(null);
+      setBoardAccessRole(null);
+      setBoardAccessRole(null);
       setSaveStatus("idle");
       setStatusMessage("Unsaved board");
       return;
@@ -304,6 +315,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
 
       setBoardId(board.id);
       setBoardOwnerId(board.ownerId);
+      setBoardAccessRole(board.accessRole ?? (board.ownerId === user?.id ? "owner" : "editor"));
       setBoardName(board.name);
       resetGraph({
         elements: board.elements,
@@ -330,6 +342,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   }
 
   const handleNodesChange: OnNodesChange = (changes: NodeChange[]) => {
+    if (readOnly) {
+      return;
+    }
     captureMeasurements(changes);
     const graphChanges = changes.filter(isGraphNodeChange);
 
@@ -365,6 +380,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const handleEdgesChange = (changes: EdgeChange[]) => {
+    if (readOnly) {
+      return;
+    }
     if (!changes.some((change) => change.type === "remove")) {
       return;
     }
@@ -384,6 +402,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const handleConnect = (connection: Connection) => {
+    if (readOnly) {
+      return;
+    }
     const nextEdge = addEdge(connection, edges).at(-1);
 
     if (!nextEdge || !connection.source || !connection.target) {
@@ -405,6 +426,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const addNode = (type: BoardElementType) => {
+    if (readOnly) {
+      return;
+    }
     addElement(type, labelForType(type));
     markUnsaved();
   };
@@ -421,7 +445,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const deleteSelectedElement = () => {
-    if (!selectedElementId) {
+    if (!selectedElementId || readOnly) {
       return;
     }
 
@@ -438,6 +462,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   const loadDemoBoard = () => {
     setBoardId(null);
     setBoardOwnerId(null);
+    setBoardAccessRole(null);
     setBoardName(demoBoardName);
     resetGraph(createDemoGraph());
     setSelectedElementId(null);
@@ -471,6 +496,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   }
 
   function deleteEdge(edgeId: string) {
+    if (readOnly) {
+      return;
+    }
     setGraph((currentGraph) => ({
       ...currentGraph,
       edges: currentGraph.edges.filter((edge) => edge.id !== edgeId),
@@ -482,6 +510,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   }
 
   const handleCleanUp = () => {
+    if (readOnly) {
+      return;
+    }
     setGraph(cleanupArchitectureLayout(graph));
     markUnsaved();
   };
@@ -516,6 +547,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
 
       setBoardId(savedBoard.id);
       setBoardOwnerId(savedBoard.ownerId);
+      setBoardAccessRole(savedBoard.accessRole ?? "owner");
       setBoardName(savedBoard.name);
       localStorage.setItem(lastBoardKeyFor(userId), savedBoard.id);
       await refreshRecentBoards();
@@ -563,7 +595,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   };
 
   const applySuggestion = (suggestion: HLDAnalysisSuggestion) => {
-    if (!suggestion.action) {
+    if (!suggestion.action || readOnly) {
       return;
     }
 
@@ -656,15 +688,16 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
         boardName={boardName}
         analyzing={analysisLoading}
         busyExport={busyExport}
-        canRedo={canRedo}
+        canRedo={!readOnly && canRedo}
         canShare={Boolean(!boardId || (user && boardOwnerId === user.id))}
-        canUndo={canUndo}
+        canUndo={!readOnly && canUndo}
         collaborationError={collaboration.error}
         collaborationParticipants={collaboration.participants}
         collaborationStatus={collaboration.status}
         currentUserId={user?.id ?? null}
         nodeTypes={addableElementTypes}
         recentBoards={recentBoards}
+        readOnly={readOnly}
         saveStatus={saveStatus}
         statusMessage={statusMessage}
         onAddNode={addNode}
@@ -684,7 +717,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
         }}
         onRedo={handleRedo}
         onSaveBoard={handleSaveBoard}
-        onCreateShareLink={async () => {
+        onCreateShareLink={async (role) => {
           if (!user) {
             requestAuth("Sign in to save and share this board.");
             throw new Error("Sign in to continue sharing.");
@@ -695,7 +728,17 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           }
 
           const savedBoard = await saveBoardToCloud(user.id);
-          return createShareLink("hld", savedBoard.id);
+          return {
+            boardId: savedBoard.id,
+            shareUrl: await createShareLink("hld", savedBoard.id, role),
+          };
+        }}
+        onRestoreVersion={(restoredGraph) => {
+          resetGraph(restoredGraph);
+          setSelectedElementId(null);
+          setSelectedEdgeId(null);
+          setSaveStatus("saved");
+          setStatusMessage("Version restored");
         }}
         onUndo={handleUndo}
       />
@@ -718,6 +761,9 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           setSelectedElementId(null);
           setSelectedEdgeId(null);
         }}
+        onCursorMove={collaboration.sendCursor}
+        readOnly={readOnly}
+        remoteCursors={collaboration.remoteCursors}
       />
 
       <aside
@@ -739,6 +785,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           onDeleteElement={deleteSelectedElement}
           onLabelChange={updateSelectedElementLabel}
           onMetadataChange={updateSelectedElementMetadata}
+          readOnly={readOnly}
         />
         <ArchitectureAssistPanel
           error={analysisError}
@@ -746,6 +793,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           source={analysisSource}
           suggestions={suggestions}
           onApplySuggestion={applySuggestion}
+          readOnly={readOnly}
         />
       </aside>
     </main>
@@ -841,6 +889,7 @@ function toFlowEdge(
   selected: boolean,
   onDelete: (edgeId: string) => void,
   onSelect: (edgeId: string) => void,
+  readOnly: boolean,
 ): Edge {
   return {
     id: edge.id,
@@ -849,7 +898,7 @@ function toFlowEdge(
     target: edge.targetElementId,
     animated: true,
     data: {
-      onDelete,
+      onDelete: readOnly ? undefined : onDelete,
       onSelect,
     },
     interactionWidth: 28,
@@ -980,6 +1029,10 @@ function contextBadgesForElement(element: BoardElement): string[] {
 
   if (metadata.notes) {
     badges.push("Notes");
+  }
+
+  if (metadata.contextItems?.length) {
+    badges.push(`${metadata.contextItems.length} Attachments`);
   }
 
   return badges;

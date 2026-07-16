@@ -1,4 +1,8 @@
-import type { Board, BoardSummary } from "../../types/board.js";
+import type {
+  Board,
+  BoardAccessRole,
+  BoardSummary,
+} from "../../types/board.js";
 
 import { BoardModel } from "./board.schema.js";
 
@@ -15,7 +19,7 @@ export async function findBoardById(
     id: boardId,
     ...accessFilterForUser(userId),
   }).lean();
-  return document ? toBoard(document) : null;
+  return document ? toBoard(document, userId) : null;
 }
 
 export async function listRecentBoards(
@@ -25,7 +29,15 @@ export async function listRecentBoards(
   const documents = await BoardModel.find(accessFilterForUser(userId))
     .sort({ updatedAt: -1 })
     .limit(limit)
-    .select({ _id: 0, id: 1, name: 1, ownerId: 1, updatedAt: 1 })
+    .select({
+      _id: 0,
+      id: 1,
+      name: 1,
+      ownerId: 1,
+      collaboratorIds: 1,
+      viewerIds: 1,
+      updatedAt: 1,
+    })
     .lean();
 
   return documents.map((document) => ({
@@ -33,6 +45,7 @@ export async function listRecentBoards(
     name: document.name,
     ownerId: document.ownerId,
     updatedAt: document.updatedAt,
+    accessRole: accessRoleForBoard(document as Board, userId),
   }));
 }
 
@@ -41,12 +54,12 @@ export async function updateBoard(
   userId: string,
 ): Promise<Board | null> {
   const document = await BoardModel.findOneAndUpdate(
-    { id: board.id, ...accessFilterForUser(userId) },
+    { id: board.id, ...editFilterForUser(userId) },
     { $set: board },
     { new: true },
   ).lean();
 
-  return document ? toBoard(document) : null;
+  return document ? toBoard(document, userId) : null;
 }
 
 export async function findOwnedBoardById(
@@ -68,10 +81,11 @@ export async function setBoardShareToken(
   boardId: string,
   ownerId: string,
   shareToken: string,
+  shareRole: "editor" | "viewer",
 ): Promise<Board | null> {
   const document = await BoardModel.findOneAndUpdate(
     { id: boardId, ownerId },
-    { $set: { shareToken } },
+    { $set: { shareToken, shareRole } },
     { new: true },
   ).lean();
 
@@ -81,14 +95,66 @@ export async function setBoardShareToken(
 export async function addBoardCollaborator(
   boardId: string,
   userId: string,
+  role: "editor" | "viewer",
 ): Promise<Board | null> {
   const document = await BoardModel.findOneAndUpdate(
     { id: boardId },
-    { $addToSet: { collaboratorIds: userId } },
+    role === "editor"
+      ? {
+          $addToSet: { collaboratorIds: userId },
+          $pull: { viewerIds: userId },
+        }
+      : {
+          $addToSet: { viewerIds: userId },
+          $pull: { collaboratorIds: userId },
+        },
     { new: true },
   ).lean();
 
   return document ? toBoard(document) : null;
+}
+
+export async function revokeBoardShareToken(
+  boardId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const result = await BoardModel.updateOne(
+    { id: boardId, ownerId },
+    { $unset: { shareToken: 1, shareRole: 1 } },
+  );
+  return result.matchedCount > 0;
+}
+
+export async function removeBoardCollaborator(
+  boardId: string,
+  ownerId: string,
+  userId: string,
+): Promise<boolean> {
+  const result = await BoardModel.updateOne(
+    { id: boardId, ownerId },
+    { $pull: { collaboratorIds: userId, viewerIds: userId } },
+  );
+  return result.matchedCount > 0;
+}
+
+export async function setBoardCollaboratorRole(
+  boardId: string,
+  ownerId: string,
+  userId: string,
+  role: "editor" | "viewer",
+): Promise<boolean> {
+  const update =
+    role === "editor"
+      ? {
+          $addToSet: { collaboratorIds: userId },
+          $pull: { viewerIds: userId },
+        }
+      : {
+          $addToSet: { viewerIds: userId },
+          $pull: { collaboratorIds: userId },
+        };
+  const result = await BoardModel.updateOne({ id: boardId, ownerId }, update);
+  return result.matchedCount > 0;
 }
 
 export async function persistBoardGraph(
@@ -97,7 +163,7 @@ export async function persistBoardGraph(
   graph: Pick<Board, "elements" | "edges">,
 ): Promise<boolean> {
   const result = await BoardModel.updateOne(
-    { id: boardId, ...accessFilterForUser(userId) },
+    { id: boardId, ...editFilterForUser(userId) },
     {
       $set: {
         ...graph,
@@ -111,17 +177,40 @@ export async function persistBoardGraph(
 
 export function accessFilterForUser(userId: string) {
   return {
+    $or: [
+      { ownerId: userId },
+      { collaboratorIds: userId },
+      { viewerIds: userId },
+    ],
+  };
+}
+
+export function editFilterForUser(userId: string) {
+  return {
     $or: [{ ownerId: userId }, { collaboratorIds: userId }],
   };
 }
 
-function toBoard(document: Board & { _id?: unknown }): Board {
+export function accessRoleForBoard(
+  board: Pick<Board, "ownerId" | "collaboratorIds" | "viewerIds">,
+  userId: string,
+): BoardAccessRole {
+  if (board.ownerId === userId) {
+    return "owner";
+  }
+  return board.collaboratorIds?.includes(userId) ? "editor" : "viewer";
+}
+
+function toBoard(document: Board & { _id?: unknown }, userId?: string): Board {
   return {
     id: document.id,
     name: document.name,
     ownerId: document.ownerId,
     collaboratorIds: document.collaboratorIds ?? [],
+    viewerIds: document.viewerIds ?? [],
     shareToken: document.shareToken,
+    shareRole: document.shareRole,
+    accessRole: userId ? accessRoleForBoard(document, userId) : document.accessRole,
     elements: document.elements,
     edges: document.edges,
     createdAt: document.createdAt,

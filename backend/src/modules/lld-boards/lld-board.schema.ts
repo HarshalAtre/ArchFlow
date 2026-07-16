@@ -28,6 +28,7 @@ const umlClassSchema = new Schema(
     attributes: { type: [memberSchema], default: [] },
     methods: { type: [memberSchema], default: [] },
     responsibility: { type: String, default: "" },
+    contextItems: { type: [Schema.Types.Mixed], default: [] },
   },
   { _id: false },
 );
@@ -53,7 +54,9 @@ const lldBoardSchema = new Schema<LLDBoard>(
     name: { type: String, required: true },
     ownerId: { type: String, required: true, index: true },
     collaboratorIds: { type: [String], default: [], index: true },
+    viewerIds: { type: [String], default: [], index: true },
     shareToken: { type: String, sparse: true, unique: true },
+    shareRole: { type: String, enum: ["editor", "viewer"] },
     classes: { type: [umlClassSchema], default: [] },
     relationships: { type: [relationshipSchema], default: [] },
     createdAt: { type: String, required: true },

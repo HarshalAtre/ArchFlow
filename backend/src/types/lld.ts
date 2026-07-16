@@ -29,6 +29,7 @@ export type UmlClass = {
   attributes: UmlMember[];
   methods: UmlMember[];
   responsibility: string;
+  contextItems?: ContextItem[];
 };
 
 export type UmlRelationship = {
@@ -53,7 +54,10 @@ export type LLDBoard = LLDGraph & {
   name: string;
   ownerId: string;
   collaboratorIds: string[];
+  viewerIds: string[];
   shareToken?: string;
+  shareRole?: Exclude<BoardAccessRole, "owner">;
+  accessRole?: BoardAccessRole;
   createdAt: string;
   updatedAt: string;
 };
@@ -63,4 +67,6 @@ export type LLDBoardSummary = {
   name: string;
   ownerId: string;
   updatedAt: string;
+  accessRole?: BoardAccessRole;
 };
+import type { BoardAccessRole, ContextItem } from "./board.js";

@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 import {
   getCurrentUser,
@@ -106,6 +107,7 @@ function AuthDialog({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -212,15 +214,31 @@ function AuthDialog({
           </label>
           <label>
             Password
-            <input
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-              className="text-input"
-              minLength={8}
-              required
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
+            <span className="password-input-wrapper">
+              <input
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                className="text-input"
+                minLength={8}
+                required
+                type={passwordVisible ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button
+                aria-label={passwordVisible ? "Hide password" : "Show password"}
+                aria-pressed={passwordVisible}
+                className="password-toggle"
+                title={passwordVisible ? "Hide password" : "Show password"}
+                type="button"
+                onClick={() => setPasswordVisible((visible) => !visible)}
+              >
+                {passwordVisible ? (
+                  <EyeOff aria-hidden="true" size={18} />
+                ) : (
+                  <Eye aria-hidden="true" size={18} />
+                )}
+              </button>
+            </span>
           </label>
           {error ? <p className="status-text status-error">{error}</p> : null}
           <button className="primary-button" disabled={submitting} type="submit">

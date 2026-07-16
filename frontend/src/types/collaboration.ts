@@ -15,6 +15,18 @@ export type CollaborationParticipant = {
   connectionCount: number;
 };
 
+export type CollaborationCursor = CollaborationRoom & {
+  userId: string;
+  userName: string;
+  x: number;
+  y: number;
+};
+
+export type CollaborationCursorPayload = CollaborationRoom & {
+  x: number;
+  y: number;
+};
+
 export type CollaborationRoom = {
   boardId: string;
   mode: CollaborationMode;
@@ -39,6 +51,7 @@ export type CollaborationServerEvents = {
     participants: CollaborationParticipant[],
   ) => void;
   "collaboration:snapshot": (snapshot: CollaborationSnapshot) => void;
+  "collaboration:cursor": (cursor: CollaborationCursor) => void;
 };
 
 export type CollaborationClientEvents = {
@@ -51,4 +64,5 @@ export type CollaborationClientEvents = {
     payload: CollaborationUpdate,
     acknowledge: (result: CollaborationAck) => void,
   ) => void;
+  "collaboration:cursor": (payload: CollaborationCursorPayload) => void;
 };

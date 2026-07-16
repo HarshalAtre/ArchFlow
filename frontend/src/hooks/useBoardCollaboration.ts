@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 
 import type {
   CollaborationClientEvents,
+  CollaborationCursor,
   CollaborationGraph,
   CollaborationMode,
   CollaborationParticipant,
@@ -37,6 +38,7 @@ export function useBoardCollaboration<T extends CollaborationGraph>({
     CollaborationParticipant[]
   >([]);
   const [status, setStatus] = useState<CollaborationStatus>("offline");
+  const [remoteCursors, setRemoteCursors] = useState<CollaborationCursor[]>([]);
   const [error, setError] = useState("");
   const socketRef = useRef<CollaborationSocket | null>(null);
   const joinedRef = useRef(false);
@@ -50,6 +52,7 @@ export function useBoardCollaboration<T extends CollaborationGraph>({
     if (!enabled || !boardId) {
       joinedRef.current = false;
       setParticipants([]);
+      setRemoteCursors([]);
       setStatus("offline");
       setError("");
       return;
@@ -87,7 +90,19 @@ export function useBoardCollaboration<T extends CollaborationGraph>({
       lastSentGraphRef.current = serializedGraph;
       onRemoteGraphRef.current(snapshot.graph as T);
     });
-    socket.on("collaboration:presence", setParticipants);
+    socket.on("collaboration:presence", (nextParticipants) => {
+      setParticipants(nextParticipants);
+      const participantIds = new Set(nextParticipants.map(({ id }) => id));
+      setRemoteCursors((current) =>
+        current.filter(({ userId }) => participantIds.has(userId)),
+      );
+    });
+    socket.on("collaboration:cursor", (cursor) => {
+      setRemoteCursors((current) => [
+        ...current.filter(({ userId }) => userId !== cursor.userId),
+        cursor,
+      ]);
+    });
     socket.on("collaboration:error", (message) => {
       setStatus("error");
       setError(message);
@@ -99,6 +114,7 @@ export function useBoardCollaboration<T extends CollaborationGraph>({
     socket.on("disconnect", () => {
       joinedRef.current = false;
       setParticipants([]);
+      setRemoteCursors([]);
       setStatus("offline");
     });
 
@@ -110,6 +126,7 @@ export function useBoardCollaboration<T extends CollaborationGraph>({
       socket.disconnect();
       socketRef.current = null;
       setParticipants([]);
+      setRemoteCursors([]);
       setStatus("offline");
     };
   }, [boardId, enabled, mode]);
@@ -149,9 +166,24 @@ export function useBoardCollaboration<T extends CollaborationGraph>({
     return () => window.clearTimeout(timeoutId);
   }, [boardId, graph, mode]);
 
+  const sendCursor = useCallback(
+    (x: number, y: number) => {
+      const socket = socketRef.current;
+
+      if (!socket || !joinedRef.current || !boardId) {
+        return;
+      }
+
+      socket.emit("collaboration:cursor", { boardId, mode, x, y });
+    },
+    [boardId, mode],
+  );
+
   return {
     error,
     participants,
+    remoteCursors,
+    sendCursor,
     status,
   };
 }
