@@ -9,6 +9,8 @@ import { HistoryControls } from "../HistoryControls";
 import { ShareBoardControl } from "../ShareBoardControl";
 import { TransferControls } from "../TransferControls";
 import { VersionHistory } from "../VersionHistory";
+import { BoardManagementControls } from "../BoardManagementControls";
+import type { BoardAccessRole } from "../../types/board";
 import type { ShareRole } from "../../services/sharingApi";
 import { labelForType } from "./boardLabels";
 
@@ -16,6 +18,7 @@ type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
 
 type BoardToolbarProps = {
   boardId: string | null;
+  boardAccessRole: BoardAccessRole | null;
   boardName: string;
   analyzing: boolean;
   busyExport: "pdf" | "png" | null;
@@ -40,6 +43,10 @@ type BoardToolbarProps = {
   onExportPng: () => void;
   onImportJson: (file: File) => void;
   onLoadDemoBoard: () => void;
+  onDuplicateBoard: () => Promise<void>;
+  onNewBlankBoard: () => void;
+  onRemoveBoard: () => Promise<void>;
+  onRenameBoard: () => Promise<void>;
   onLoadBoard: (boardId: string) => void;
   onRedo: () => void;
   onSaveBoard: () => void;
@@ -52,6 +59,7 @@ type BoardToolbarProps = {
 
 export function BoardToolbar({
   boardId,
+  boardAccessRole,
   boardName,
   analyzing,
   busyExport,
@@ -76,6 +84,10 @@ export function BoardToolbar({
   onExportPng,
   onImportJson,
   onLoadDemoBoard,
+  onDuplicateBoard,
+  onNewBlankBoard,
+  onRemoveBoard,
+  onRenameBoard,
   onLoadBoard,
   onRedo,
   onSaveBoard,
@@ -150,6 +162,15 @@ export function BoardToolbar({
           canRestore={!readOnly}
           mode="hld"
           onRestore={(graph) => onRestoreVersion(graph as BoardGraph)}
+        />
+        <BoardManagementControls
+          accessRole={boardAccessRole}
+          boardId={boardId}
+          busy={saveStatus === "loading" || saveStatus === "saving"}
+          onDuplicate={onDuplicateBoard}
+          onNewBlank={onNewBlankBoard}
+          onRemove={onRemoveBoard}
+          onRename={onRenameBoard}
         />
         <button type="button" onClick={onLoadDemoBoard}>
           Load Demo Board

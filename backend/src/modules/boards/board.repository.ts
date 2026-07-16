@@ -62,6 +62,29 @@ export async function updateBoard(
   return document ? toBoard(document, userId) : null;
 }
 
+export async function deleteOwnedBoard(
+  boardId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const result = await BoardModel.deleteOne({ id: boardId, ownerId });
+  return result.deletedCount > 0;
+}
+
+export async function leaveBoard(
+  boardId: string,
+  userId: string,
+): Promise<boolean> {
+  const result = await BoardModel.updateOne(
+    {
+      id: boardId,
+      ownerId: { $ne: userId },
+      $or: [{ collaboratorIds: userId }, { viewerIds: userId }],
+    },
+    { $pull: { collaboratorIds: userId, viewerIds: userId } },
+  );
+  return result.matchedCount > 0;
+}
+
 export async function findOwnedBoardById(
   boardId: string,
   ownerId: string,

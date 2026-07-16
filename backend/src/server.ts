@@ -12,14 +12,18 @@ import {
 import { cleanupArchitectureLayout } from "./modules/architecture/architecture.service.js";
 import {
   createBoard,
+  deleteOwnedBoard,
   findBoardById,
+  leaveBoard,
   listRecentBoards,
   updateBoard,
 } from "./modules/boards/board.repository.js";
 import { validateBoardGraph } from "./modules/boards/board.validation.js";
 import {
   createLLDBoard,
+  deleteOwnedLLDBoard,
   findLLDBoardById,
+  leaveLLDBoard,
   listRecentLLDBoards,
   updateLLDBoard,
 } from "./modules/lld-boards/lld-board.repository.js";
@@ -32,7 +36,10 @@ import {
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { sharingRouter } from "./modules/sharing/sharing.routes.js";
 import { versionRouter } from "./modules/versions/version.routes.js";
-import { recordBoardVersion } from "./modules/versions/version.repository.js";
+import {
+  deleteBoardVersions,
+  recordBoardVersion,
+} from "./modules/versions/version.repository.js";
 import { env } from "./config/env.js";
 import { connectToMongo } from "./database/mongo.js";
 import type { Board, BoardGraph } from "./types/board.js";
@@ -164,6 +171,69 @@ app.patch("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Requ
   response.json(updatedBoard ? withoutShareToken(updatedBoard) : null);
 }));
 
+app.post("/api/boards/:boardId/duplicate", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const sourceBoard = await findBoardById(request.params.boardId, user.id);
+
+  if (!sourceBoard) {
+    response.status(404).json({ message: "Board not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const duplicate: Board = {
+    id: randomUUID(),
+    name: normalizedBoardName(request.body?.name, `${sourceBoard.name} Copy`),
+    ownerId: user.id,
+    collaboratorIds: [],
+    viewerIds: [],
+    elements: sourceBoard.elements,
+    edges: sourceBoard.edges,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const createdBoard = await createBoard(duplicate);
+  await recordBoardVersion({
+    action: "created",
+    actorId: user.id,
+    actorName: user.name,
+    boardId: createdBoard.id,
+    graph: { elements: createdBoard.elements, edges: createdBoard.edges },
+    mode: "hld",
+  });
+  response.status(201).json(withoutShareToken(createdBoard));
+}));
+
+app.delete("/api/boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const board = await findBoardById(request.params.boardId, user.id);
+
+  if (!board) {
+    response.status(404).json({ message: "Board not found" });
+    return;
+  }
+
+  if (board.ownerId === user.id) {
+    const deleted = await deleteOwnedBoard(board.id, user.id);
+
+    if (!deleted) {
+      response.status(409).json({ message: "Board could not be deleted." });
+      return;
+    }
+
+    await deleteBoardVersions("hld", board.id);
+    response.json({ action: "deleted" });
+    return;
+  }
+
+  const left = await leaveBoard(board.id, user.id);
+  response.status(left ? 200 : 409).json(
+    left
+      ? { action: "left" }
+      : { message: "Shared board could not be left." },
+  );
+}));
+
 app.get("/api/lld-boards", requireAuth, asyncHandler(async (_request: Request, response: Response) => {
   const user = authUserFromResponse(response);
   const boards = await listRecentLLDBoards(user.id);
@@ -269,6 +339,72 @@ app.patch("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: 
     });
   }
   response.json(updatedBoard ? withoutShareToken(updatedBoard) : null);
+}));
+
+app.post("/api/lld-boards/:boardId/duplicate", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const sourceBoard = await findLLDBoardById(request.params.boardId, user.id);
+
+  if (!sourceBoard) {
+    response.status(404).json({ message: "LLD board not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const duplicate: LLDBoard = {
+    id: randomUUID(),
+    name: normalizedBoardName(request.body?.name, `${sourceBoard.name} Copy`),
+    ownerId: user.id,
+    collaboratorIds: [],
+    viewerIds: [],
+    classes: sourceBoard.classes,
+    relationships: sourceBoard.relationships,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const createdBoard = await createLLDBoard(duplicate);
+  await recordBoardVersion({
+    action: "created",
+    actorId: user.id,
+    actorName: user.name,
+    boardId: createdBoard.id,
+    graph: {
+      classes: createdBoard.classes,
+      relationships: createdBoard.relationships,
+    },
+    mode: "lld",
+  });
+  response.status(201).json(withoutShareToken(createdBoard));
+}));
+
+app.delete("/api/lld-boards/:boardId", requireAuth, asyncHandler(async (request: Request, response: Response) => {
+  const user = authUserFromResponse(response);
+  const board = await findLLDBoardById(request.params.boardId, user.id);
+
+  if (!board) {
+    response.status(404).json({ message: "LLD board not found" });
+    return;
+  }
+
+  if (board.ownerId === user.id) {
+    const deleted = await deleteOwnedLLDBoard(board.id, user.id);
+
+    if (!deleted) {
+      response.status(409).json({ message: "LLD board could not be deleted." });
+      return;
+    }
+
+    await deleteBoardVersions("lld", board.id);
+    response.json({ action: "deleted" });
+    return;
+  }
+
+  const left = await leaveLLDBoard(board.id, user.id);
+  response.status(left ? 200 : 409).json(
+    left
+      ? { action: "left" }
+      : { message: "Shared LLD board could not be left." },
+  );
 }));
 
 app.post("/api/ai/analyze/hld", asyncHandler(async (request: Request, response: Response) => {

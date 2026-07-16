@@ -59,6 +59,29 @@ export async function updateLLDBoard(
   return document ? toLLDBoard(document, userId) : null;
 }
 
+export async function deleteOwnedLLDBoard(
+  boardId: string,
+  ownerId: string,
+): Promise<boolean> {
+  const result = await LLDBoardModel.deleteOne({ id: boardId, ownerId });
+  return result.deletedCount > 0;
+}
+
+export async function leaveLLDBoard(
+  boardId: string,
+  userId: string,
+): Promise<boolean> {
+  const result = await LLDBoardModel.updateOne(
+    {
+      id: boardId,
+      ownerId: { $ne: userId },
+      $or: [{ collaboratorIds: userId }, { viewerIds: userId }],
+    },
+    { $pull: { collaboratorIds: userId, viewerIds: userId } },
+  );
+  return result.matchedCount > 0;
+}
+
 export async function findOwnedLLDBoardById(
   boardId: string,
   ownerId: string,

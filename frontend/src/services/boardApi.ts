@@ -32,6 +32,29 @@ export async function updateBoard(boardId: string, payload: SaveBoardPayload): P
   return parseBoardResponse(response);
 }
 
+export async function duplicateBoard(
+  boardId: string,
+  name: string,
+): Promise<Board> {
+  const response = await fetch(`${API_URL}/api/boards/${boardId}/duplicate`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return parseBoardResponse(response);
+}
+
+export async function removeBoard(
+  boardId: string,
+): Promise<"deleted" | "left"> {
+  const response = await fetch(`${API_URL}/api/boards/${boardId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  return parseRemovalResponse(response);
+}
+
 export async function getBoard(boardId: string): Promise<Board> {
   const response = await fetch(`${API_URL}/api/boards/${boardId}`, {
     credentials: "include",
@@ -64,4 +87,15 @@ async function errorMessageFor(response: Response, fallback: string): Promise<st
   const errorBody = await response.json().catch(() => null);
 
   return typeof errorBody?.message === "string" ? errorBody.message : fallback;
+}
+
+async function parseRemovalResponse(
+  response: Response,
+): Promise<"deleted" | "left"> {
+  if (!response.ok) {
+    throw new Error(await errorMessageFor(response, "Board removal failed"));
+  }
+
+  const body = (await response.json()) as { action?: unknown };
+  return body.action === "left" ? "left" : "deleted";
 }

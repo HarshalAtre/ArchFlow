@@ -24,6 +24,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
 import { CollaborationStatus } from "../components/CollaborationStatus";
+import { BoardManagementControls } from "../components/BoardManagementControls";
 import { ContextItemsEditor } from "../components/ContextItemsEditor";
 import { HistoryControls } from "../components/HistoryControls";
 import { RemoteCursors } from "../components/RemoteCursors";
@@ -50,8 +51,10 @@ import {
 } from "../services/boardTransfer";
 import {
   createLLDBoard,
+  duplicateLLDBoard,
   getLLDBoard,
   listRecentLLDBoards,
+  removeLLDBoard,
   updateLLDBoard,
 } from "../services/lldBoardApi";
 import { createShareLink } from "../services/sharingApi";
@@ -455,6 +458,24 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
     setStatusMessage("Unsaved template");
   };
 
+  const createBlankLLDBoard = () => {
+    setBoardId(null);
+    setBoardOwnerId(null);
+    setBoardAccessRole(null);
+    setBoardName("Untitled LLD");
+    resetLLDGraph({ classes: [], relationships: [] });
+    setSelectedClassId(null);
+    setSelectedRelationshipId(null);
+    setSuggestions([]);
+    setAnalysisSource(null);
+    setAnalysisError("");
+    if (user) {
+      localStorage.removeItem(lastLLDBoardKeyFor(user.id));
+    }
+    setSaveStatus("idle");
+    setStatusMessage("Unsaved blank LLD board");
+  };
+
   const handleSaveBoard = async () => {
     if (!user) {
       requestAuth("Sign in to save this LLD board to your account.");
@@ -490,6 +511,66 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
     } catch (error) {
       setSaveStatus("error");
       setStatusMessage(error instanceof Error ? error.message : "Save failed");
+      throw error;
+    }
+  }
+
+  async function handleDuplicateBoard() {
+    if (!user || !boardId) {
+      requestAuth("Sign in to duplicate this LLD board.");
+      return;
+    }
+
+    setSaveStatus("saving");
+    setStatusMessage("Duplicating...");
+
+    try {
+      const duplicated = await duplicateLLDBoard(
+        boardId,
+        `${boardName.trim() || "Untitled LLD"} Copy`,
+      );
+      applySavedBoard(duplicated);
+      await refreshRecentBoards();
+      setSaveStatus("saved");
+      setStatusMessage("Duplicated as your LLD board");
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not duplicate LLD board",
+      );
+      throw error;
+    }
+  }
+
+  async function handleRemoveBoard() {
+    if (!boardId || !user) {
+      return;
+    }
+
+    setSaveStatus("saving");
+    setStatusMessage(
+      boardOwnerId === user.id
+        ? "Deleting LLD board..."
+        : "Leaving shared LLD board...",
+    );
+
+    try {
+      const action = await removeLLDBoard(boardId);
+      localStorage.removeItem(lastLLDBoardKeyFor(user.id));
+      createBlankLLDBoard();
+      await refreshRecentBoards();
+      setStatusMessage(
+        action === "deleted"
+          ? "LLD board deleted"
+          : "Shared LLD board removed from your account",
+      );
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(
+        error instanceof Error ? error.message : "Could not remove LLD board",
+      );
       throw error;
     }
   }
@@ -845,6 +926,22 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
               setSelectedRelationshipId(null);
               setSaveStatus("saved");
               setStatusMessage("Version restored");
+            }}
+          />
+          <BoardManagementControls
+            accessRole={boardAccessRole}
+            boardId={boardId}
+            busy={saveStatus === "loading" || saveStatus === "saving"}
+            onDuplicate={handleDuplicateBoard}
+            onNewBlank={createBlankLLDBoard}
+            onRemove={handleRemoveBoard}
+            onRename={async () => {
+              if (!user) {
+                requestAuth("Sign in to rename this LLD board.");
+                return;
+              }
+              await saveBoardToCloud();
+              setStatusMessage("LLD board renamed");
             }}
           />
           {recentBoards.length > 0 ? (

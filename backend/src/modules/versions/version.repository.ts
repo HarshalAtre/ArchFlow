@@ -66,3 +66,10 @@ export async function findBoardVersion(
   }).lean();
   return version as BoardVersion | null;
 }
+
+export async function deleteBoardVersions(
+  mode: CollaborationMode,
+  boardId: string,
+): Promise<void> {
+  await BoardVersionModel.deleteMany({ mode, boardId });
+}

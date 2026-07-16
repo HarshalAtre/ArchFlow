@@ -31,6 +31,38 @@ export async function updateLLDBoard(
   return parseLLDBoardResponse(response);
 }
 
+export async function duplicateLLDBoard(
+  boardId: string,
+  name: string,
+): Promise<LLDBoard> {
+  const response = await fetch(
+    `${API_URL}/api/lld-boards/${boardId}/duplicate`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  );
+  return parseLLDBoardResponse(response);
+}
+
+export async function removeLLDBoard(
+  boardId: string,
+): Promise<"deleted" | "left"> {
+  const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(await errorMessageFor(response, "LLD board removal failed"));
+  }
+
+  const body = (await response.json()) as { action?: unknown };
+  return body.action === "left" ? "left" : "deleted";
+}
+
 export async function getLLDBoard(boardId: string): Promise<LLDBoard> {
   const response = await fetch(`${API_URL}/api/lld-boards/${boardId}`, {
     credentials: "include",

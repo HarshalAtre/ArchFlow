@@ -40,8 +40,10 @@ import {
 } from "../services/boardTransfer";
 import {
   createBoard,
+  duplicateBoard,
   getBoard,
   listRecentBoards,
+  removeBoard,
   updateBoard,
 } from "../services/boardApi";
 import { createShareLink } from "../services/sharingApi";
@@ -477,6 +479,24 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
     setStatusMessage("Unsaved demo board");
   };
 
+  const createBlankBoard = () => {
+    setBoardId(null);
+    setBoardOwnerId(null);
+    setBoardAccessRole(null);
+    setBoardName("Untitled Architecture");
+    resetGraph({ elements: [], edges: [] });
+    setSelectedElementId(null);
+    setSelectedEdgeId(null);
+    setSuggestions([]);
+    setAnalysisSource(null);
+    setAnalysisError("");
+    if (user) {
+      localStorage.removeItem(lastBoardKeyFor(user.id));
+    }
+    setSaveStatus("idle");
+    setStatusMessage("Unsaved blank board");
+  };
+
   const deleteSelectedEdge = () => {
     if (!selectedEdgeId) {
       return;
@@ -530,6 +550,63 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
     }
   };
 
+  async function handleDuplicateBoard() {
+    if (!user || !boardId) {
+      requestAuth("Sign in to duplicate this board.");
+      return;
+    }
+
+    setSaveStatus("saving");
+    setStatusMessage("Duplicating...");
+
+    try {
+      const duplicated = await duplicateBoard(
+        boardId,
+        `${boardName.trim() || "Untitled Architecture"} Copy`,
+      );
+      applySavedBoard(duplicated);
+      localStorage.setItem(lastBoardKeyFor(user.id), duplicated.id);
+      await refreshRecentBoards();
+      setSaveStatus("saved");
+      setStatusMessage("Duplicated as your board");
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(
+        error instanceof Error ? error.message : "Could not duplicate board",
+      );
+      throw error;
+    }
+  }
+
+  async function handleRemoveBoard() {
+    if (!boardId || !user) {
+      return;
+    }
+
+    setSaveStatus("saving");
+    setStatusMessage(
+      boardOwnerId === user.id ? "Deleting board..." : "Leaving shared board...",
+    );
+
+    try {
+      const action = await removeBoard(boardId);
+      localStorage.removeItem(lastBoardKeyFor(user.id));
+      createBlankBoard();
+      await refreshRecentBoards();
+      setStatusMessage(
+        action === "deleted"
+          ? "Board deleted"
+          : "Shared board removed from your account",
+      );
+    } catch (error) {
+      setSaveStatus("error");
+      setStatusMessage(
+        error instanceof Error ? error.message : "Could not remove board",
+      );
+      throw error;
+    }
+  }
+
   async function saveBoardToCloud(userId: string) {
     setSaveStatus("saving");
     setStatusMessage("Saving...");
@@ -545,10 +622,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
         ? await updateBoard(boardId, payload)
         : await createBoard(payload);
 
-      setBoardId(savedBoard.id);
-      setBoardOwnerId(savedBoard.ownerId);
-      setBoardAccessRole(savedBoard.accessRole ?? "owner");
-      setBoardName(savedBoard.name);
+      applySavedBoard(savedBoard);
       localStorage.setItem(lastBoardKeyFor(userId), savedBoard.id);
       await refreshRecentBoards();
       setSaveStatus("saved");
@@ -559,6 +633,22 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
       setStatusMessage(error instanceof Error ? error.message : "Save failed");
       throw error;
     }
+  }
+
+  function applySavedBoard(savedBoard: Awaited<ReturnType<typeof createBoard>>) {
+    setBoardId(savedBoard.id);
+    setBoardOwnerId(savedBoard.ownerId);
+    setBoardAccessRole(savedBoard.accessRole ?? "owner");
+    setBoardName(savedBoard.name);
+    resetGraph({
+      elements: savedBoard.elements,
+      edges: savedBoard.edges,
+    });
+    setSelectedElementId(null);
+    setSelectedEdgeId(null);
+    setSuggestions([]);
+    setAnalysisSource(null);
+    setAnalysisError("");
   }
 
   const updateSelectedElementLabel = (label: string) => {
@@ -685,6 +775,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
     <main className="app-shell">
       <BoardToolbar
         boardId={boardId}
+        boardAccessRole={boardAccessRole}
         boardName={boardName}
         analyzing={analysisLoading}
         busyExport={busyExport}
@@ -712,6 +803,17 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
         onExportPng={() => void handleVisualExport("png")}
         onImportJson={(file) => void handleImportJson(file)}
         onLoadDemoBoard={loadDemoBoard}
+        onDuplicateBoard={handleDuplicateBoard}
+        onNewBlankBoard={createBlankBoard}
+        onRemoveBoard={handleRemoveBoard}
+        onRenameBoard={async () => {
+          if (!user) {
+            requestAuth("Sign in to rename this board.");
+            return;
+          }
+          await saveBoardToCloud(user.id);
+          setStatusMessage("Board renamed");
+        }}
         onLoadBoard={(boardIdToLoad) => {
           void loadBoard(boardIdToLoad);
         }}
