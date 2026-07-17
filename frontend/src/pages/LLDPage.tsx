@@ -20,6 +20,24 @@ import {
   applyNodeChanges,
   getBezierPath,
 } from "@xyflow/react";
+import {
+  BookOpen,
+  Box,
+  Braces,
+  FileOutput,
+  FolderClock,
+  ListPlus,
+  LayoutTemplate,
+  ListTree,
+  NotepadText,
+  PanelTop,
+  ScanSearch,
+  Settings2,
+  Shapes,
+  type LucideIcon,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
@@ -27,12 +45,18 @@ import { CollaborationStatus } from "../components/CollaborationStatus";
 import { BoardManagementControls } from "../components/BoardManagementControls";
 import { CanvasStateOverlay } from "../components/CanvasStateOverlay";
 import {
+  CreationPicker,
+  type CreationPickerItem,
+} from "../components/CreationPicker";
+import { DisclosureSection } from "../components/DisclosureSection";
+import {
   WorkspacePanelClose,
   WorkspacePanelNav,
   type WorkspacePanel,
 } from "../components/WorkspacePanelNav";
 import { ContextItemsEditor } from "../components/ContextItemsEditor";
 import { HistoryControls } from "../components/HistoryControls";
+import { RecentBoardList } from "../components/RecentBoardList";
 import { RemoteCursors } from "../components/RemoteCursors";
 import { ShareBoardControl } from "../components/ShareBoardControl";
 import { TransferControls } from "../components/TransferControls";
@@ -116,6 +140,12 @@ const umlEdgeTypes: EdgeTypes = {
 };
 
 const classKinds: UmlClassKind[] = ["class", "abstract", "interface", "enum"];
+const umlTypePickerItems: CreationPickerItem<UmlClassKind>[] = [
+  { id: "class", label: "Class", description: "Concrete type", icon: Box, tone: "blue" },
+  { id: "interface", label: "Interface", description: "Contract", icon: Braces, tone: "cyan" },
+  { id: "abstract", label: "Abstract Class", description: "Shared base", icon: Workflow, tone: "magenta" },
+  { id: "enum", label: "Enum", description: "Fixed values", icon: ListTree, tone: "amber" },
+];
 const lldDraftStorageKey = "archflow:lld-draft";
 const lastLLDBoardStorageKey = "archflow:last-lld-board-id";
 const lldSelectedClassStorageKey = "archflow:lld-selected-class";
@@ -875,8 +905,15 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           onClose={() => setMobilePanel(null)}
         />
 
-        <div className="tool-section">
-          <span className="section-label">Saved Board</span>
+        <DisclosureSection defaultOpen icon={Shapes} title="UML Types">
+          <CreationPicker
+            disabled={readOnly}
+            items={umlTypePickerItems}
+            onSelect={addClass}
+          />
+        </DisclosureSection>
+
+        <DisclosureSection defaultOpen icon={PanelTop} title="Board">
           <label className="field-group">
             <span>Name</span>
             <input
@@ -909,6 +946,39 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           >
             {statusMessage}
           </p>
+        </DisclosureSection>
+
+        {recentBoards.length > 0 ? (
+          <DisclosureSection defaultOpen icon={FolderClock} title="Recent Boards">
+            <RecentBoardList
+              boards={recentBoards}
+              currentUserId={user?.id ?? null}
+              onSelect={(boardId) => void loadBoard(boardId)}
+            />
+          </DisclosureSection>
+        ) : null}
+
+        <DisclosureSection icon={LayoutTemplate} title="Design Template">
+          <select
+            aria-label="LLD design template"
+            className="text-input"
+            value={selectedTemplateId}
+            onChange={(event) => setSelectedTemplateId(event.target.value)}
+          >
+            {lldTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+          <p className="status-text">{selectedTemplate.description}</p>
+          <button className="command-button" type="button" onClick={loadSelectedTemplate}>
+            <LayoutTemplate aria-hidden="true" size={16} />
+            Load Template
+          </button>
+        </DisclosureSection>
+
+        <DisclosureSection icon={Users} title="Collaboration">
           <CollaborationStatus
             error={collaboration.error}
             participants={collaboration.participants}
@@ -950,6 +1020,44 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
               setStatusMessage("Version restored");
             }}
           />
+        </DisclosureSection>
+
+        <DisclosureSection icon={ScanSearch} title="Review">
+          <HistoryControls
+            canRedo={!readOnly && canRedo}
+            canUndo={!readOnly && canUndo}
+            onRedo={handleRedo}
+            onUndo={handleUndo}
+          />
+          <button
+            type="button"
+            className="command-button primary-button"
+            disabled={analysisLoading}
+            onClick={() => void handleAnalyze()}
+          >
+            <ScanSearch aria-hidden="true" size={16} />
+            {analysisLoading ? "Analyzing..." : "Analyze LLD"}
+          </button>
+          <p className="status-text">Checks responsibilities, contracts, coupling, and UML relation usage.</p>
+        </DisclosureSection>
+
+        <DisclosureSection icon={FileOutput} title="Import / Export">
+          <TransferControls
+            busyAction={busyExport}
+            onExportJson={handleExportJson}
+            onExportPdf={() => void handleVisualExport("pdf")}
+            onExportPng={() => void handleVisualExport("png")}
+            onImportJson={(file) => void handleImportJson(file)}
+          />
+        </DisclosureSection>
+
+        <DisclosureSection icon={BookOpen} title="Notation">
+          <p className="status-text">+ public, - private, # protected, ~ package/internal.</p>
+          <p className="status-text">Drag from one class handle to another to create a relationship.</p>
+          <p className="status-text">Use inheritance/implementation for is-a, aggregation/composition for has-a.</p>
+        </DisclosureSection>
+
+        <DisclosureSection icon={Settings2} title="Board Actions">
           <BoardManagementControls
             accessRole={boardAccessRole}
             boardId={boardId}
@@ -966,100 +1074,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
               setStatusMessage("LLD board renamed");
             }}
           />
-          {recentBoards.length > 0 ? (
-            <div className="recent-board-list">
-              {recentBoards.map((board) => (
-                <button
-                  key={board.id}
-                  type="button"
-                  className="recent-board-button"
-                  onClick={() => void loadBoard(board.id)}
-                >
-                  <span>{board.name}</span>
-                  <small>
-                    {board.ownerId !== user?.id ? "Shared - " : ""}
-                    {formatUpdatedAt(board.updatedAt)}
-                  </small>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Design Template</span>
-          <select
-            aria-label="LLD design template"
-            className="text-input"
-            value={selectedTemplateId}
-            onChange={(event) => setSelectedTemplateId(event.target.value)}
-          >
-            {lldTemplates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.name}
-              </option>
-            ))}
-          </select>
-          <p className="status-text">{selectedTemplate.description}</p>
-          <button type="button" onClick={loadSelectedTemplate}>
-            Load Template
-          </button>
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Add UML Type</span>
-          <div className="button-grid">
-            <button type="button" disabled={readOnly} onClick={() => addClass("class")}>
-              Class
-            </button>
-            <button type="button" disabled={readOnly} onClick={() => addClass("interface")}>
-              Interface
-            </button>
-            <button type="button" disabled={readOnly} onClick={() => addClass("abstract")}>
-              Abstract Class
-            </button>
-            <button type="button" disabled={readOnly} onClick={() => addClass("enum")}>
-              Enum
-            </button>
-          </div>
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Review</span>
-          <HistoryControls
-            canRedo={!readOnly && canRedo}
-            canUndo={!readOnly && canUndo}
-            onRedo={handleRedo}
-            onUndo={handleUndo}
-          />
-          <button
-            type="button"
-            className="primary-button"
-            disabled={analysisLoading}
-            onClick={() => void handleAnalyze()}
-          >
-            {analysisLoading ? "Analyzing..." : "Analyze LLD"}
-          </button>
-          <p className="status-text">Checks responsibilities, contracts, coupling, and UML relation usage.</p>
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Import / Export</span>
-          <TransferControls
-            busyAction={busyExport}
-            onExportJson={handleExportJson}
-            onExportPdf={() => void handleVisualExport("pdf")}
-            onExportPng={() => void handleVisualExport("png")}
-            onImportJson={(file) => void handleImportJson(file)}
-          />
-        </div>
-
-        <div className="tool-section">
-          <span className="section-label">Notation</span>
-          <p className="status-text">+ public, - private, # protected, ~ package/internal.</p>
-          <p className="status-text">Drag from one class handle to another to create a relationship.</p>
-          <p className="status-text">Use inheritance/implementation for is-a, aggregation/composition for has-a.</p>
-        </div>
+        </DisclosureSection>
       </aside>
 
       <section
@@ -1312,6 +1327,7 @@ function LLDContextPanel({
         </label>
 
         <MemberEditor
+          icon={ListPlus}
           label="Attributes"
           members={selectedClass.attributes}
           emptyText="Interfaces and enums can skip attributes."
@@ -1320,6 +1336,7 @@ function LLDContextPanel({
         />
 
         <MemberEditor
+          icon={Workflow}
           label="Methods"
           members={selectedClass.methods}
           emptyText="Add operations that express behavior."
@@ -1327,16 +1344,18 @@ function LLDContextPanel({
           disabled={readOnly}
         />
 
-        <label className="field-group">
-          <span>Responsibility</span>
-          <textarea
-            className="compact-textarea"
-            disabled={readOnly}
-            value={selectedClass.responsibility}
-            onChange={(event) => onClassChange({ responsibility: event.target.value })}
-            placeholder="What does this class own? Which reason should make it change?"
-          />
-        </label>
+        <DisclosureSection icon={NotepadText} title="Responsibility" variant="inspector">
+          <label className="field-group">
+            <span className="visually-hidden">Responsibility</span>
+            <textarea
+              className="compact-textarea"
+              disabled={readOnly}
+              value={selectedClass.responsibility}
+              onChange={(event) => onClassChange({ responsibility: event.target.value })}
+              placeholder="What does this class own? Which reason should make it change?"
+            />
+          </label>
+        </DisclosureSection>
 
         <ContextItemsEditor
           disabled={readOnly}
@@ -1408,6 +1427,7 @@ function LLDAnalysisPanel({
 type MemberEditorProps = {
   disabled?: boolean;
   emptyText: string;
+  icon: LucideIcon;
   label: string;
   members: UmlMember[];
   onMembersChange: (members: UmlMember[]) => void;
@@ -1416,6 +1436,7 @@ type MemberEditorProps = {
 function MemberEditor({
   disabled = false,
   emptyText,
+  icon,
   label,
   members,
   onMembersChange,
@@ -1427,8 +1448,11 @@ function MemberEditor({
   };
 
   return (
-    <div className="field-group">
-      <span>{label}</span>
+    <DisclosureSection
+      icon={icon}
+      title={`${label} (${members.length})`}
+      variant="inspector"
+    >
       {members.length > 0 ? (
         <div className="uml-member-editor">
           {members.map((member) => (
@@ -1472,7 +1496,7 @@ function MemberEditor({
       <button type="button" disabled={disabled} onClick={() => onMembersChange([...members, createMember("+", "")])}>
         Add {label.slice(0, -1)}
       </button>
-    </div>
+    </DisclosureSection>
   );
 }
 
@@ -1752,16 +1776,6 @@ function positionForSuggestedType(
   }
 
   return candidate;
-}
-
-function formatUpdatedAt(updatedAt: string): string {
-  const parsedDate = new Date(updatedAt);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return updatedAt;
-  }
-
-  return parsedDate.toLocaleString();
 }
 
 function readLLDDraft(): LLDDraft {

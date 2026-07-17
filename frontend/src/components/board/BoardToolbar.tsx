@@ -1,4 +1,20 @@
 import type { BoardElementType, BoardGraph, RecentBoard } from "../../types/board";
+import {
+  Boxes,
+  CloudCog,
+  Database,
+  FileOutput,
+  FolderClock,
+  MonitorSmartphone,
+  Network,
+  PanelTop,
+  ScanSearch,
+  Settings2,
+  Sparkles,
+  Users,
+  Waypoints,
+  Zap,
+} from "lucide-react";
 import type {
   CollaborationParticipant,
   CollaborationStatus as CollaborationState,
@@ -6,16 +22,31 @@ import type {
 
 import { CollaborationStatus } from "../CollaborationStatus";
 import { HistoryControls } from "../HistoryControls";
+import { RecentBoardList } from "../RecentBoardList";
 import { ShareBoardControl } from "../ShareBoardControl";
 import { TransferControls } from "../TransferControls";
 import { VersionHistory } from "../VersionHistory";
 import { BoardManagementControls } from "../BoardManagementControls";
 import { WorkspacePanelClose } from "../WorkspacePanelNav";
+import {
+  CreationPicker,
+  type CreationPickerItem,
+} from "../CreationPicker";
+import { DisclosureSection } from "../DisclosureSection";
 import type { BoardAccessRole } from "../../types/board";
 import type { ShareRole } from "../../services/sharingApi";
-import { labelForType } from "./boardLabels";
 
 type SaveStatus = "idle" | "loading" | "saving" | "saved" | "error";
+
+const componentPickerItems: CreationPickerItem<BoardElementType>[] = [
+  { id: "client", label: "Client", description: "User-facing", icon: MonitorSmartphone, tone: "cyan" },
+  { id: "api-gateway", label: "API Gateway", description: "Entry point", icon: Network, tone: "amber" },
+  { id: "service", label: "Service", description: "Compute", icon: Boxes, tone: "blue" },
+  { id: "database", label: "Database", description: "Persistent", icon: Database, tone: "green" },
+  { id: "cache", label: "Cache", description: "Fast data", icon: Zap, tone: "magenta" },
+  { id: "queue", label: "Queue", description: "Async flow", icon: Waypoints, tone: "yellow" },
+  { id: "external-api", label: "External API", description: "Third-party", icon: CloudCog, tone: "red" },
+];
 
 type BoardToolbarProps = {
   boardId: string | null;
@@ -107,30 +138,15 @@ export function BoardToolbar({
     >
       <WorkspacePanelClose label="Tools" onClose={onMobileClose} />
 
-      {recentBoards.length > 0 ? (
-        <div className="tool-section">
-          <span className="section-label">Recent Boards</span>
-          <div className="recent-board-list">
-            {recentBoards.map((recentBoard) => (
-              <button
-                key={recentBoard.id}
-                type="button"
-                className="recent-board-button"
-                onClick={() => onLoadBoard(recentBoard.id)}
-              >
-                <span>{recentBoard.name}</span>
-                <small>
-                  {recentBoard.ownerId !== currentUserId ? "Shared - " : ""}
-                  {new Date(recentBoard.updatedAt).toLocaleString()}
-                </small>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <DisclosureSection defaultOpen icon={Boxes} title="Components">
+        <CreationPicker
+          disabled={readOnly}
+          items={componentPickerItems.filter((item) => nodeTypes.includes(item.id))}
+          onSelect={onAddNode}
+        />
+      </DisclosureSection>
 
-      <div className="tool-section">
-        <span className="section-label">Board</span>
+      <DisclosureSection defaultOpen icon={PanelTop} title="Board">
         <input
           aria-label="Board name"
           className="text-input"
@@ -150,6 +166,19 @@ export function BoardToolbar({
           {statusMessage}
           {boardId ? ` (${boardId.slice(0, 8)})` : ""}
         </p>
+      </DisclosureSection>
+
+      {recentBoards.length > 0 ? (
+        <DisclosureSection defaultOpen icon={FolderClock} title="Recent Boards">
+          <RecentBoardList
+            boards={recentBoards}
+            currentUserId={currentUserId}
+            onSelect={onLoadBoard}
+          />
+        </DisclosureSection>
+      ) : null}
+
+      <DisclosureSection icon={Users} title="Collaboration">
         <CollaborationStatus
           error={collaborationError}
           participants={collaborationParticipants}
@@ -168,6 +197,36 @@ export function BoardToolbar({
           mode="hld"
           onRestore={(graph) => onRestoreVersion(graph as BoardGraph)}
         />
+      </DisclosureSection>
+
+      <DisclosureSection icon={ScanSearch} title="Review">
+        <HistoryControls
+          canRedo={canRedo}
+          canUndo={canUndo}
+          onRedo={onRedo}
+          onUndo={onUndo}
+        />
+        <button className="command-button" type="button" disabled={readOnly} onClick={onCleanUp}>
+          <Sparkles aria-hidden="true" size={16} />
+          Clean Up
+        </button>
+        <button className="command-button" type="button" disabled={analyzing} onClick={onAnalyze}>
+          <ScanSearch aria-hidden="true" size={16} />
+          {analyzing ? "Analyzing..." : "Analyze"}
+        </button>
+      </DisclosureSection>
+
+      <DisclosureSection icon={FileOutput} title="Import / Export">
+        <TransferControls
+          busyAction={busyExport}
+          onExportJson={onExportJson}
+          onExportPdf={onExportPdf}
+          onExportPng={onExportPng}
+          onImportJson={onImportJson}
+        />
+      </DisclosureSection>
+
+      <DisclosureSection icon={Settings2} title="Board Actions">
         <BoardManagementControls
           accessRole={boardAccessRole}
           boardId={boardId}
@@ -177,48 +236,11 @@ export function BoardToolbar({
           onRemove={onRemoveBoard}
           onRename={onRenameBoard}
         />
-        <button type="button" onClick={onLoadDemoBoard}>
+        <button className="command-button" type="button" onClick={onLoadDemoBoard}>
+          <PanelTop aria-hidden="true" size={16} />
           Load Demo Board
         </button>
-      </div>
-
-      <div className="tool-section">
-        <span className="section-label">Add Component</span>
-        <div className="button-grid">
-          {nodeTypes.map((type) => (
-            <button key={type} type="button" disabled={readOnly} onClick={() => onAddNode(type)}>
-              {labelForType(type)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tool-section">
-        <span className="section-label">Actions</span>
-        <HistoryControls
-          canRedo={canRedo}
-          canUndo={canUndo}
-          onRedo={onRedo}
-          onUndo={onUndo}
-        />
-        <button type="button" disabled={readOnly} onClick={onCleanUp}>
-          Clean Up
-        </button>
-        <button type="button" disabled={analyzing} onClick={onAnalyze}>
-          {analyzing ? "Analyzing..." : "Analyze"}
-        </button>
-      </div>
-
-      <div className="tool-section">
-        <span className="section-label">Import / Export</span>
-        <TransferControls
-          busyAction={busyExport}
-          onExportJson={onExportJson}
-          onExportPdf={onExportPdf}
-          onExportPng={onExportPng}
-          onImportJson={onImportJson}
-        />
-      </div>
+      </DisclosureSection>
     </aside>
   );
 }

@@ -1301,19 +1301,34 @@ select:focus {
 }
 
 .recent-board-list {
-  gap: var(--space-2xs);
+  gap: var(--space-3xs);
 }
 
 .recent-board-button {
-  border-color: var(--color-rule);
+  min-height: 2.5rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2xs);
+  border-color: transparent;
   background: var(--color-paper-2);
-  padding: var(--space-2xs) var(--space-xs);
+  padding: var(--space-2xs);
 }
 
 .recent-board-button small {
+  flex: 0 0 auto;
   color: var(--color-muted);
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recent-board-more {
+  min-height: 2.25rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: var(--text-xs);
 }
 
 .collaboration-status {
@@ -1630,6 +1645,237 @@ select:focus {
   color: var(--color-ink-2);
 }
 
+details.tool-section {
+  display: block;
+  gap: 0;
+  padding-block: 0;
+}
+
+.disclosure-section > summary {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2xs);
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  list-style: none;
+  text-transform: uppercase;
+}
+
+.disclosure-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure-section > summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .disclosure-section > summary:hover {
+    color: var(--color-ink);
+  }
+}
+
+.disclosure-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.disclosure-label svg {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.disclosure-chevron {
+  flex: 0 0 auto;
+  transition: transform var(--duration-short) var(--ease-out);
+}
+
+.disclosure-section[open] > summary {
+  color: var(--color-ink);
+}
+
+.disclosure-section[open] > summary .disclosure-chevron {
+  transform: rotate(180deg);
+}
+
+.disclosure-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) 0 var(--space-sm);
+}
+
+.creation-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2xs);
+}
+
+.creation-picker-button {
+  display: grid;
+  min-width: 0;
+  min-height: 4.25rem;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2xs);
+  border-color: transparent;
+  background: var(--color-paper-2);
+  padding: var(--space-2xs);
+  text-align: left;
+}
+
+.creation-picker-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, currentColor 32%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, currentColor 10%, transparent);
+}
+
+.creation-picker-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.creation-picker-copy strong,
+.creation-picker-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creation-picker-copy strong {
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.creation-picker-copy small {
+  color: var(--color-muted);
+  font-size: 0.6875rem;
+  font-weight: 400;
+}
+
+.creation-picker-button[data-tone="amber"] {
+  color: var(--color-picker-amber);
+}
+
+.creation-picker-button[data-tone="blue"] {
+  color: var(--color-picker-blue);
+}
+
+.creation-picker-button[data-tone="cyan"] {
+  color: var(--color-picker-cyan);
+}
+
+.creation-picker-button[data-tone="green"] {
+  color: var(--color-picker-green);
+}
+
+.creation-picker-button[data-tone="magenta"] {
+  color: var(--color-picker-magenta);
+}
+
+.creation-picker-button[data-tone="red"] {
+  color: var(--color-picker-red);
+}
+
+.creation-picker-button[data-tone="yellow"] {
+  color: var(--color-picker-yellow);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .creation-picker-button:hover:not(:disabled) {
+    border-color: color-mix(in oklch, currentColor 40%, var(--color-rule));
+    background: var(--color-paper-3);
+  }
+}
+
+.creation-picker-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.command-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+}
+
+.command-button svg {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.command-button.primary-button svg {
+  color: currentColor;
+}
+
+.command-button.danger-button svg {
+  color: currentColor;
+}
+
+.disclosure-content > .command-button:not(.primary-button):not(.danger-button),
+.disclosure-content .history-controls .command-button,
+.disclosure-content .transfer-controls .command-button,
+.disclosure-content .board-management .command-button,
+.disclosure-content .version-history > .command-button,
+.disclosure-content .share-control > .command-button {
+  border-color: transparent;
+  background: var(--color-paper-2);
+}
+
+.toolbar .text-input,
+.toolbar textarea,
+.toolbar select {
+  background: var(--color-paper-2);
+}
+
+.context-panel .selected-card .text-input,
+.context-panel .selected-card textarea,
+.context-panel .selected-card select,
+.context-panel .suggestion-card .text-input,
+.context-panel .suggestion-card textarea,
+.context-panel .suggestion-card select {
+  background: var(--color-paper);
+}
+
+textarea {
+  min-height: 7rem;
+}
+
+.inspector-disclosure {
+  border-top: 1px solid var(--color-rule);
+  padding-top: var(--space-3xs);
+}
+
+.inspector-disclosure > summary {
+  min-height: 2.5rem;
+  color: var(--color-ink-2);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.inspector-disclosure .disclosure-content {
+  padding-bottom: var(--space-xs);
+}
+
 .workspace-panel-nav,
 .workspace-panel-heading,
 .workspace-panel-backdrop {
@@ -1835,6 +2081,19 @@ select:focus {
 
   .canvas-state-content {
     padding: var(--space-sm);
+  }
+}
+
+@media (max-width: 21.25rem) {
+  .creation-picker-button {
+    min-height: 5rem;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: var(--space-3xs);
+  }
+
+  .creation-picker-copy {
+    width: 100%;
   }
 }
 

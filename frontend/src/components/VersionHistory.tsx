@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { History } from "lucide-react";
 
 import { listBoardVersions, restoreBoardVersion } from "../services/versionApi";
 import type {
@@ -63,7 +64,8 @@ export function VersionHistory({
 
   return (
     <div className="version-history">
-      <button type="button" onClick={() => setExpanded((value) => !value)}>
+      <button className="command-button" type="button" onClick={() => setExpanded((value) => !value)}>
+        <History aria-hidden="true" size={16} />
         {expanded ? "Hide History" : "Version History"}
       </button>
       {expanded ? (

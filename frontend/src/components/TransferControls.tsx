@@ -1,4 +1,5 @@
 import { ChangeEvent, useRef } from "react";
+import { FileJson, FileText, Image, Upload } from "lucide-react";
 
 type TransferControlsProps = {
   busyAction: "pdf" | "png" | null;
@@ -30,20 +31,25 @@ export function TransferControls({
   return (
     <div className="transfer-controls">
       <div className="transfer-button-grid">
-        <button type="button" disabled={busyAction !== null} onClick={onExportPng}>
+        <button className="command-button" type="button" disabled={busyAction !== null} onClick={onExportPng}>
+          <Image aria-hidden="true" size={16} />
           {busyAction === "png" ? "Exporting..." : "PNG"}
         </button>
-        <button type="button" disabled={busyAction !== null} onClick={onExportPdf}>
+        <button className="command-button" type="button" disabled={busyAction !== null} onClick={onExportPdf}>
+          <FileText aria-hidden="true" size={16} />
           {busyAction === "pdf" ? "Exporting..." : "PDF"}
         </button>
-        <button type="button" disabled={busyAction !== null} onClick={onExportJson}>
+        <button className="command-button" type="button" disabled={busyAction !== null} onClick={onExportJson}>
+          <FileJson aria-hidden="true" size={16} />
           Export JSON
         </button>
         <button
           type="button"
+          className="command-button"
           disabled={busyAction !== null}
           onClick={() => fileInputRef.current?.click()}
         >
+          <Upload aria-hidden="true" size={16} />
           Import JSON
         </button>
       </div>

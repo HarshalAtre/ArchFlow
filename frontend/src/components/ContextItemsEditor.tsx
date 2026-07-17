@@ -1,6 +1,8 @@
+import { Paperclip } from "lucide-react";
 import { useRef, useState } from "react";
 
 import type { ContextItem } from "../types/board";
+import { DisclosureSection } from "./DisclosureSection";
 
 const maxAttachmentBytes = 256 * 1024;
 
@@ -78,8 +80,11 @@ export function ContextItemsEditor({
   }
 
   return (
-    <div className="context-items-editor">
-      <span className="field-label">Attachments</span>
+    <DisclosureSection
+      icon={Paperclip}
+      title={`Attachments (${items.length})`}
+      variant="inspector"
+    >
       {items.length > 0 ? (
         <div className="context-item-list">
           {items.map((item) => (
@@ -175,7 +180,7 @@ export function ContextItemsEditor({
         />
         {error ? <p className="status-text status-error">{error}</p> : null}
       </div>
-    </div>
+    </DisclosureSection>
   );
 }
 

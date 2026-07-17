@@ -22,6 +22,13 @@
   --color-danger-soft: oklch(27% 0.05 25);
   --color-canvas-dot: oklch(32% 0.018 250);
   --color-shadow: oklch(5% 0.01 255 / 32%);
+  --color-picker-amber: oklch(80% 0.12 80);
+  --color-picker-blue: var(--color-accent);
+  --color-picker-cyan: oklch(76% 0.12 210);
+  --color-picker-green: var(--color-success);
+  --color-picker-magenta: oklch(76% 0.12 330);
+  --color-picker-red: var(--color-danger);
+  --color-picker-yellow: oklch(82% 0.12 100);
 
   --font-display: "IBM Plex Mono", ui-monospace, monospace;
   --font-body: "IBM Plex Sans", ui-sans-serif, sans-serif;
@@ -50,7 +57,7 @@
   --duration-panel: 220ms;
 
   --header-height: 3.5rem;
-  --tools-width: 17rem;
+  --tools-width: 22rem;
   --inspector-width: 20rem;
 }
 
@@ -77,4 +84,11 @@
   --color-danger-soft: oklch(96% 0.035 25);
   --color-canvas-dot: oklch(78% 0.018 250);
   --color-shadow: oklch(24% 0.025 255 / 10%);
+  --color-picker-amber: oklch(52% 0.12 75);
+  --color-picker-blue: var(--color-accent);
+  --color-picker-cyan: oklch(45% 0.12 210);
+  --color-picker-green: var(--color-success);
+  --color-picker-magenta: oklch(50% 0.14 330);
+  --color-picker-red: var(--color-danger);
+  --color-picker-yellow: oklch(52% 0.12 95);
 }

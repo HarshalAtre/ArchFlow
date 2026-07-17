@@ -10,6 +10,7 @@ test("guest can start blank HLD and LLD diagrams", async ({ page }) => {
   await mockGuestSession(page);
   await page.goto("/");
 
+  await openToolSection(page, "HLD tools", "Board Actions");
   await page.getByRole("button", { name: "New Blank" }).click();
   await expect(page.getByLabel("Board name")).toHaveValue(
     "Untitled Architecture",
@@ -19,10 +20,14 @@ test("guest can start blank HLD and LLD diagrams", async ({ page }) => {
     page.getByText("Start with your first component", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Add Service" }).click();
+  await page
+    .getByLabel("HLD tools")
+    .getByRole("button", { name: "Service Compute", exact: true })
+    .click();
   await expect(page.locator(".architecture-node")).toHaveCount(1);
 
   await page.getByRole("button", { name: "LLD Board" }).click();
+  await openToolSection(page, "LLD tools", "Board Actions");
   await page.getByRole("button", { name: "New Blank" }).click();
   await expect(page.getByLabel("LLD board name")).toHaveValue("Untitled LLD");
   await expect(page.locator(".uml-class-node")).toHaveCount(0);
@@ -30,8 +35,19 @@ test("guest can start blank HLD and LLD diagrams", async ({ page }) => {
     page.getByText("Start your UML model", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Add Class" }).click();
+  await page
+    .getByLabel("LLD tools")
+    .getByRole("button", { name: "Class Concrete type", exact: true })
+    .click();
   await expect(page.locator(".uml-class-node")).toHaveCount(1);
+
+  const attributes = page
+    .getByLabel("LLD inspector")
+    .locator("details")
+    .filter({ hasText: "Attributes" });
+  await expect(attributes).not.toHaveAttribute("open", "");
+  await attributes.locator("summary").click();
+  await expect(page.getByRole("button", { name: "Add Attribute" })).toBeVisible();
 });
 
 test("mobile workbench keeps HLD and LLD tools accessible in drawers", async ({
@@ -102,6 +118,32 @@ test("desktop rails scroll without moving the workspace", async ({ page }) => {
 
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect.poll(async () => (await canvas.boundingBox())?.y).toBe(canvasTop);
+});
+
+test("recent boards stay compact and expand on demand", async ({ page }) => {
+  const updatedAt = new Date().toISOString();
+  const boards = Array.from({ length: 5 }, (_, index) => ({
+    id: `recent-${index + 1}`,
+    name: `Architecture ${index + 1}`,
+    ownerId: user.id,
+    accessRole: "owner",
+    updatedAt,
+  }));
+
+  await mockAuthenticatedSession(page);
+  await page.route("**/api/boards", (route) =>
+    route.fulfill({ json: { boards } }),
+  );
+  await page.goto("/");
+
+  const recentBoards = page.getByLabel("HLD tools").locator(".recent-board-button");
+  await expect(recentBoards).toHaveCount(3);
+
+  await page.getByRole("button", { name: "Load more (2)" }).click();
+  await expect(recentBoards).toHaveCount(5);
+
+  await page.getByRole("button", { name: "Show fewer" }).click();
+  await expect(recentBoards).toHaveCount(3);
 });
 
 test("failed board loads show an actionable retry state", async ({ page }) => {
@@ -266,6 +308,7 @@ test("owner can rename, duplicate, and delete an HLD board", async ({
     .getByRole("button", { name: /Checkout Architecture/ })
     .click();
 
+  await openToolSection(page, "HLD tools", "Board Actions");
   await page.getByLabel("Board name").fill("Checkout Platform");
   await page.getByRole("button", { name: "Rename & Save" }).click();
   await expect(page.getByText(/Board renamed/)).toBeVisible();
@@ -329,8 +372,10 @@ test("collaborator can leave a shared LLD board", async ({ page }) => {
 
   await page.goto("/");
   await page.getByRole("button", { name: "LLD Board" }).click();
+  await openToolSection(page, "LLD tools", "Collaboration");
   await page.getByRole("button", { name: /Shared Billing LLD/ }).click();
 
+  await openToolSection(page, "LLD tools", "Board Actions");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Leave Shared Board" }).click();
   await expect(page.getByLabel("LLD board name")).toHaveValue("Untitled LLD");
@@ -340,6 +385,21 @@ test("collaborator can leave a shared LLD board", async ({ page }) => {
     }),
   ).toBeVisible();
 });
+
+async function openToolSection(
+  page: Page,
+  panelLabel: "HLD tools" | "LLD tools",
+  title: string,
+) {
+  const section = page
+    .getByLabel(panelLabel)
+    .locator("details")
+    .filter({ has: page.locator("summary", { hasText: title }) });
+
+  if (!(await section.evaluate((element) => element.hasAttribute("open")))) {
+    await section.locator("summary").click();
+  }
+}
 
 async function mockGuestSession(page: Page) {
   await page.route("**/api/auth/me", (route) =>

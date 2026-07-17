@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Copy, FilePlus2, LogOut, Pencil, Trash2 } from "lucide-react";
 
 import type { BoardAccessRole } from "../types/board";
 
@@ -25,6 +26,7 @@ export function BoardManagementControls({
     "duplicate" | "remove" | "rename" | null
   >(null);
   const shared = Boolean(boardId && accessRole && accessRole !== "owner");
+  const RemoveIcon = shared ? LogOut : Trash2;
 
   async function run(
     nextAction: NonNullable<typeof action>,
@@ -50,34 +52,40 @@ export function BoardManagementControls({
 
   return (
     <div className="board-management">
-      <button type="button" disabled={busy} onClick={onNewBlank}>
+      <button className="command-button" type="button" disabled={busy} onClick={onNewBlank}>
+        <FilePlus2 aria-hidden="true" size={16} />
         New Blank
       </button>
       {boardId && accessRole !== "viewer" ? (
         <button
           type="button"
+          className="command-button"
           disabled={busy || action !== null}
           onClick={() => void run("rename", onRename)}
         >
+          <Pencil aria-hidden="true" size={16} />
           {action === "rename" ? "Renaming..." : "Rename & Save"}
         </button>
       ) : null}
       {boardId ? (
         <button
           type="button"
+          className="command-button"
           disabled={busy || action !== null}
           onClick={() => void run("duplicate", onDuplicate)}
         >
+          <Copy aria-hidden="true" size={16} />
           {action === "duplicate" ? "Duplicating..." : "Duplicate"}
         </button>
       ) : null}
       {boardId ? (
         <button
           type="button"
-          className="danger-button"
+          className="command-button danger-button"
           disabled={busy || action !== null}
           onClick={confirmRemoval}
         >
+          <RemoveIcon aria-hidden="true" size={16} />
           {action === "remove"
             ? shared
               ? "Leaving..."

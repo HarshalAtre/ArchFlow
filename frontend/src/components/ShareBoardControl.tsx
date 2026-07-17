@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Copy, Share2, UsersRound } from "lucide-react";
 
 import {
   changeCollaboratorRole,
@@ -124,7 +125,8 @@ export function ShareBoardControl({
           <option value="editor">Can edit</option>
           <option value="viewer">View only</option>
         </select>
-        <button type="button" disabled={loading} onClick={handleCreateLink}>
+        <button className="command-button" type="button" disabled={loading} onClick={handleCreateLink}>
+          <Share2 aria-hidden="true" size={16} />
           {loading ? "Creating..." : "Share Board"}
         </button>
       </div>
@@ -137,7 +139,8 @@ export function ShareBoardControl({
             value={shareUrl}
             onFocus={(event) => event.currentTarget.select()}
           />
-          <button type="button" onClick={() => void copyShareUrl(shareUrl)}>
+          <button className="command-button" type="button" onClick={() => void copyShareUrl(shareUrl)}>
+            <Copy aria-hidden="true" size={16} />
             Copy
           </button>
         </div>
@@ -145,8 +148,10 @@ export function ShareBoardControl({
       {activeBoardId ? (
         <button
           type="button"
+          className="command-button"
           onClick={() => setExpanded((value) => !value)}
         >
+          <UsersRound aria-hidden="true" size={16} />
           {expanded ? "Hide Access" : "Manage Access"}
         </button>
       ) : null}

@@ -62,6 +62,9 @@ tokens instead of introducing new raw spacing values.
 - Focus indicators appear instantly
 - One hover effect per control
 - Loading states keep geometry stable
+- Creation tools use domain-specific icons and restrained semantic color.
+- Secondary commands and detailed editors use progressive disclosure.
+- Collapsed editor sections show useful counts so their content stays discoverable.
 
 ## CTA Voice
 
