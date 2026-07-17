@@ -9,12 +9,27 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 export async function listBoardVersions(
   mode: CollaborationMode,
   boardId: string,
-): Promise<BoardVersion[]> {
-  const response = await fetch(`${API_URL}/api/versions/${mode}/${boardId}`, {
-    credentials: "include",
+  page: number,
+  pageSize = 5,
+): Promise<{ page: number; total: number; totalPages: number; versions: BoardVersion[] }> {
+  const query = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
   });
+  const response = await fetch(
+    `${API_URL}/api/versions/${mode}/${boardId}?${query.toString()}`,
+    { credentials: "include" },
+  );
   const body = await parseResponse(response);
-  return Array.isArray(body.versions) ? (body.versions as BoardVersion[]) : [];
+  const pagination = body.pagination as Record<string, unknown> | undefined;
+
+  return {
+    page: typeof pagination?.page === "number" ? pagination.page : page,
+    total: typeof pagination?.total === "number" ? pagination.total : 0,
+    totalPages:
+      typeof pagination?.totalPages === "number" ? pagination.totalPages : 1,
+    versions: Array.isArray(body.versions) ? (body.versions as BoardVersion[]) : [],
+  };
 }
 
 export async function restoreBoardVersion(

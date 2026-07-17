@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { History } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, RotateCcw } from "lucide-react";
 
 import { listBoardVersions, restoreBoardVersion } from "../services/versionApi";
 import type {
@@ -23,25 +23,45 @@ export function VersionHistory({
 }: VersionHistoryProps) {
   const [versions, setVersions] = useState<BoardVersion[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     if (!expanded || !boardId) {
       return;
     }
-    void refresh();
+    setPage(1);
+    void refresh(1);
   }, [boardId, expanded, mode]);
 
-  async function refresh() {
+  async function refresh(requestedPage: number) {
     if (!boardId) {
       return;
     }
+    setLoading(true);
     try {
-      setVersions(await listBoardVersions(mode, boardId));
+      const result = await listBoardVersions(mode, boardId, requestedPage);
+      setVersions(result.versions);
+      setPage(result.page);
+      setTotal(result.total);
+      setTotalPages(result.totalPages);
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not load history.");
+    } finally {
+      setLoading(false);
     }
+  }
+
+  function changePage(nextPage: number) {
+    if (loading || nextPage < 1 || nextPage > totalPages) {
+      return;
+    }
+    setPage(nextPage);
+    void refresh(nextPage);
   }
 
   async function restore(versionId: string) {
@@ -51,7 +71,7 @@ export function VersionHistory({
     try {
       const graph = await restoreBoardVersion(mode, boardId, versionId);
       onRestore(graph);
-      await refresh();
+      await refresh(1);
       setStatus("Version restored");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Restore failed.");
@@ -75,18 +95,53 @@ export function VersionHistory({
               <div>
                 <strong>{labelForAction(version.action)}</strong>
                 <small>
-                  {version.actorName} - {new Date(version.createdAt).toLocaleString()}
+                  {version.actorName} - {formatVersionDate(version.createdAt)}
                 </small>
               </div>
               {canRestore ? (
-                <button type="button" onClick={() => void restore(version.id)}>
+                <button
+                  className="command-button version-restore-button"
+                  type="button"
+                  onClick={() => void restore(version.id)}
+                >
+                  <RotateCcw aria-hidden="true" size={14} />
                   Restore
                 </button>
               ) : null}
             </article>
           ))}
-          {versions.length === 0 ? (
+          {loading && versions.length === 0 ? (
+            <p className="status-text">Loading versions...</p>
+          ) : null}
+          {!loading && versions.length === 0 ? (
             <p className="status-text">No saved versions yet.</p>
+          ) : null}
+          {totalPages > 1 ? (
+            <nav aria-label="Version history pages" className="version-pagination">
+              <button
+                aria-label="Previous version page"
+                className="icon-command-button"
+                disabled={loading || page === 1}
+                title="Previous page"
+                type="button"
+                onClick={() => changePage(page - 1)}
+              >
+                <ChevronLeft aria-hidden="true" size={15} />
+              </button>
+              <span>
+                {page} / {totalPages} <small>({total})</small>
+              </span>
+              <button
+                aria-label="Next version page"
+                className="icon-command-button"
+                disabled={loading || page === totalPages}
+                title="Next page"
+                type="button"
+                onClick={() => changePage(page + 1)}
+              >
+                <ChevronRight aria-hidden="true" size={15} />
+              </button>
+            </nav>
           ) : null}
         </div>
       ) : null}
@@ -102,4 +157,19 @@ function labelForAction(action: BoardVersion["action"]): string {
     "live-update": "Live update",
     restored: "Version restored",
   }[action];
+}
+
+function formatVersionDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+  }).format(date);
 }

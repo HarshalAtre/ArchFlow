@@ -75,7 +75,7 @@ test("mobile workbench keeps HLD and LLD tools accessible in drawers", async ({
   await page.getByRole("button", { name: "LLD Board" }).click();
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await expect(page.getByLabel("LLD tools")).toHaveClass(/workspace-panel-open/);
-  await expect(page.getByRole("button", { name: "Save LLD Board" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Board" })).toBeVisible();
   await page.getByRole("button", { name: "Close Tools" }).click();
 
   await page.getByRole("button", { name: "Inspector", exact: true }).click();
@@ -144,6 +144,77 @@ test("recent boards stay compact and expand on demand", async ({ page }) => {
 
   await page.getByRole("button", { name: "Show fewer" }).click();
   await expect(recentBoards).toHaveCount(3);
+});
+
+test("version history loads five records per page", async ({ page }) => {
+  const graph = { elements: [], edges: [] };
+  const versions = Array.from({ length: 12 }, (_, index) => ({
+    id: `version-${index + 1}`,
+    boardId: "history-board",
+    mode: "hld",
+    actorId: `actor-${index + 1}`,
+    actorName: `Person ${index + 1}`,
+    action: "saved",
+    createdAt: new Date(Date.now() - index * 60_000).toISOString(),
+  }));
+
+  await mockAuthenticatedSession(page);
+  await page.route("**/api/boards", (route) =>
+    route.fulfill({
+      json: {
+        boards: [
+          {
+            id: "history-board",
+            name: "Versioned Architecture",
+            ownerId: user.id,
+            accessRole: "owner",
+            updatedAt: new Date().toISOString(),
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/boards/history-board", (route) =>
+    route.fulfill({
+      json: boardResponse("history-board", "Versioned Architecture", graph),
+    }),
+  );
+  await page.route("**/api/versions/hld/history-board**", (route) => {
+    const requestUrl = new URL(route.request().url());
+    const requestedPage = Number(requestUrl.searchParams.get("page") ?? "1");
+    const pageSize = Number(requestUrl.searchParams.get("pageSize") ?? "5");
+    const start = (requestedPage - 1) * pageSize;
+
+    return route.fulfill({
+      json: {
+        versions: versions.slice(start, start + pageSize),
+        pagination: {
+          page: requestedPage,
+          pageSize,
+          total: versions.length,
+          totalPages: Math.ceil(versions.length / pageSize),
+        },
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: /Versioned Architecture/ }).click();
+  await openToolSection(page, "HLD tools", "Collaboration");
+  await page.getByRole("button", { name: "Version History" }).click();
+
+  const rows = page.locator(".version-row");
+  await expect(rows).toHaveCount(5);
+  await expect(page.getByText("1 / 3 (12)", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Next version page" }).click();
+  await expect(page.getByText("Person 6", { exact: false })).toBeVisible();
+  await expect(rows).toHaveCount(5);
+  await expect(page.getByText("2 / 3 (12)", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Next version page" }).click();
+  await expect(rows).toHaveCount(2);
+  await expect(page.getByText("3 / 3 (12)", { exact: true })).toBeVisible();
 });
 
 test("failed board loads show an actionable retry state", async ({ page }) => {

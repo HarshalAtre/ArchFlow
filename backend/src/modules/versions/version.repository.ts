@@ -44,14 +44,23 @@ export async function recordBoardVersion(input: {
 export async function listBoardVersions(
   mode: CollaborationMode,
   boardId: string,
-): Promise<BoardVersionSummary[]> {
-  const versions = await BoardVersionModel.find({ mode, boardId })
-    .sort({ createdAt: -1 })
-    .limit(retainedVersionCount)
-    .select({ graph: 0, _id: 0 })
-    .lean();
+  options: { limit: number; skip: number },
+): Promise<{ total: number; versions: BoardVersionSummary[] }> {
+  const query = { mode, boardId };
+  const [versions, total] = await Promise.all([
+    BoardVersionModel.find(query)
+      .sort({ createdAt: -1 })
+      .skip(options.skip)
+      .limit(options.limit)
+      .select({ graph: 0, _id: 0 })
+      .lean(),
+    BoardVersionModel.countDocuments(query),
+  ]);
 
-  return versions as BoardVersionSummary[];
+  return {
+    total: Math.min(total, retainedVersionCount),
+    versions: versions as BoardVersionSummary[],
+  };
 }
 
 export async function findBoardVersion(

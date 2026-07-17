@@ -37,8 +37,21 @@ versionRouter.get(
       return;
     }
 
+    const page = parsePositiveInteger(request.query.page, 1);
+    const pageSize = Math.min(parsePositiveInteger(request.query.pageSize, 5), 20);
+    const result = await listBoardVersions(mode, request.params.boardId, {
+      limit: pageSize,
+      skip: (page - 1) * pageSize,
+    });
+
     response.json({
-      versions: await listBoardVersions(mode, request.params.boardId),
+      versions: result.versions,
+      pagination: {
+        page,
+        pageSize,
+        total: result.total,
+        totalPages: Math.max(1, Math.ceil(result.total / pageSize)),
+      },
     });
   }),
 );
@@ -118,4 +131,9 @@ async function canAccess(
 
 function parseMode(value: string): CollaborationMode | null {
   return value === "hld" || value === "lld" ? value : null;
+}
+
+function parsePositiveInteger(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }

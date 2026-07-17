@@ -933,7 +933,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
             disabled={readOnly || saveStatus === "loading" || saveStatus === "saving"}
             onClick={() => void handleSaveBoard()}
           >
-            {boardId ? "Update LLD Board" : "Save LLD Board"}
+            {saveStatus === "saving" ? "Saving..." : "Save Board"}
           </button>
           <p
             className={`status-text ${
