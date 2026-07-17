@@ -29,6 +29,11 @@ import { BoardCanvas } from "../components/board/BoardCanvas";
 import { BoardToolbar } from "../components/board/BoardToolbar";
 import { ContextPanel } from "../components/board/ContextPanel";
 import { CanvasStateOverlay } from "../components/CanvasStateOverlay";
+import {
+  WorkspacePanelClose,
+  WorkspacePanelNav,
+  type WorkspacePanel,
+} from "../components/WorkspacePanelNav";
 import { labelForType } from "../components/board/boardLabels";
 import { analyzeHLDGraph } from "../services/aiAdvisorApi";
 import { cleanupArchitectureLayout } from "../services/architectureEngine";
@@ -197,6 +202,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
   const [loadError, setLoadError] = useState("");
   const [lastLoadAttemptId, setLastLoadAttemptId] = useState<string | null>(null);
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<WorkspacePanel>(null);
   const { captureMeasurements, measurementFor } = useNodeMeasurements();
   const collaboration = useBoardCollaboration<BoardGraph>({
     boardId,
@@ -783,6 +789,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
 
   return (
     <main className="app-shell">
+      <WorkspacePanelNav activePanel={mobilePanel} onChange={setMobilePanel} />
       <BoardToolbar
         boardId={boardId}
         boardAccessRole={boardAccessRole}
@@ -801,6 +808,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
         readOnly={readOnly}
         saveStatus={saveStatus}
         statusMessage={statusMessage}
+        mobileOpen={mobilePanel === "tools"}
         onAddNode={addNode}
         onAnalyze={() => void handleAnalyze()}
         onBoardNameChange={(name) => {
@@ -853,6 +861,7 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           setStatusMessage("Version restored");
         }}
         onUndo={handleUndo}
+        onMobileClose={() => setMobilePanel(null)}
       />
 
       <BoardCanvas
@@ -912,7 +921,10 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
       />
 
       <aside
-        className="context-panel"
+        aria-label="HLD inspector"
+        className={`context-panel workspace-inspector-panel ${
+          mobilePanel === "inspector" ? "workspace-panel-open" : ""
+        }`}
         onFocusCapture={(event) => {
           if (isEditableHistoryTarget(event.target)) {
             beginTransaction();
@@ -924,6 +936,10 @@ export function BoardPage({ requestedBoardId }: BoardPageProps) {
           }
         }}
       >
+        <WorkspacePanelClose
+          label="Inspector"
+          onClose={() => setMobilePanel(null)}
+        />
         <ContextPanel
           selectedEdge={selectedEdgeDetails}
           selectedElement={selectedElement}
@@ -1049,11 +1065,11 @@ function toFlowEdge(
     interactionWidth: 28,
     markerEnd: {
       type: MarkerType.ArrowClosed,
-      color: selected ? "#315ddc" : "#94a3b8",
+      color: selected ? "var(--color-accent)" : "var(--color-muted)",
     },
     selected,
     style: {
-      stroke: selected ? "#315ddc" : "#94a3b8",
+      stroke: selected ? "var(--color-accent)" : "var(--color-muted)",
       strokeDasharray: selected ? undefined : "6 6",
       strokeWidth: selected ? 3 : 2,
     },

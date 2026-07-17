@@ -1,0 +1,80 @@
+/* Hallmark design tokens - ArchFlow workbench */
+:root {
+  color-scheme: dark;
+  --color-paper: oklch(20% 0.015 255);
+  --color-paper-2: oklch(16.5% 0.012 255);
+  --color-paper-3: oklch(24% 0.018 255);
+  --color-ink: oklch(94% 0.01 250);
+  --color-ink-2: oklch(78% 0.018 250);
+  --color-muted: oklch(65% 0.02 250);
+  --color-rule: oklch(29% 0.018 255);
+  --color-rule-strong: oklch(39% 0.025 255);
+  --color-accent: oklch(68% 0.17 250);
+  --color-accent-hover: oklch(74% 0.15 250);
+  --color-accent-soft: oklch(27% 0.055 250);
+  --color-accent-ink: oklch(16% 0.02 255);
+  --color-focus: oklch(76% 0.16 245);
+  --color-success: oklch(72% 0.13 155);
+  --color-success-soft: oklch(25% 0.045 155);
+  --color-warning: oklch(78% 0.13 80);
+  --color-warning-soft: oklch(27% 0.045 80);
+  --color-danger: oklch(72% 0.16 25);
+  --color-danger-soft: oklch(27% 0.05 25);
+  --color-canvas-dot: oklch(32% 0.018 250);
+  --color-shadow: oklch(5% 0.01 255 / 32%);
+
+  --font-display: "IBM Plex Mono", ui-monospace, monospace;
+  --font-body: "IBM Plex Sans", ui-sans-serif, sans-serif;
+
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.5625rem;
+
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  --control-height: 2.5rem;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-short: 140ms;
+  --duration-panel: 220ms;
+
+  --header-height: 3.5rem;
+  --tools-width: 17rem;
+  --inspector-width: 20rem;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --color-paper: oklch(98.5% 0.004 250);
+  --color-paper-2: oklch(96.5% 0.007 250);
+  --color-paper-3: oklch(93.5% 0.012 250);
+  --color-ink: oklch(24% 0.025 255);
+  --color-ink-2: oklch(40% 0.025 255);
+  --color-muted: oklch(52% 0.022 255);
+  --color-rule: oklch(87% 0.014 250);
+  --color-rule-strong: oklch(76% 0.02 250);
+  --color-accent: oklch(50% 0.18 255);
+  --color-accent-hover: oklch(43% 0.17 255);
+  --color-accent-soft: oklch(94% 0.035 255);
+  --color-accent-ink: oklch(99% 0.002 250);
+  --color-focus: oklch(58% 0.2 250);
+  --color-success: oklch(47% 0.12 155);
+  --color-success-soft: oklch(95% 0.035 155);
+  --color-warning: oklch(55% 0.14 75);
+  --color-warning-soft: oklch(96% 0.045 85);
+  --color-danger: oklch(51% 0.18 25);
+  --color-danger-soft: oklch(96% 0.035 25);
+  --color-canvas-dot: oklch(78% 0.018 250);
+  --color-shadow: oklch(24% 0.025 255 / 10%);
+}

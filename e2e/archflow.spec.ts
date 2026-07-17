@@ -34,6 +34,76 @@ test("guest can start blank HLD and LLD diagrams", async ({ page }) => {
   await expect(page.locator(".uml-class-node")).toHaveCount(1);
 });
 
+test("mobile workbench keeps HLD and LLD tools accessible in drawers", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGuestSession(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(page.getByLabel("HLD tools")).toHaveClass(/workspace-panel-open/);
+  await expect(page.getByRole("button", { name: "Save Board" })).toBeVisible();
+  await page.getByRole("button", { name: "Close Tools" }).click();
+  await expect(page.getByLabel("HLD tools")).not.toHaveClass(/workspace-panel-open/);
+
+  await page.getByRole("button", { name: "Inspector", exact: true }).click();
+  await expect(page.getByLabel("HLD inspector")).toHaveClass(
+    /workspace-panel-open/,
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("HLD inspector")).not.toHaveClass(
+    /workspace-panel-open/,
+  );
+
+  await page.getByRole("button", { name: "LLD Board" }).click();
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(page.getByLabel("LLD tools")).toHaveClass(/workspace-panel-open/);
+  await expect(page.getByRole("button", { name: "Save LLD Board" })).toBeVisible();
+  await page.getByRole("button", { name: "Close Tools" }).click();
+
+  await page.getByRole("button", { name: "Inspector", exact: true }).click();
+  await expect(page.getByLabel("LLD inspector")).toHaveClass(
+    /workspace-panel-open/,
+  );
+  await page.getByRole("button", { name: "Close Inspector" }).click();
+  await expect(page.getByLabel("LLD inspector")).not.toHaveClass(
+    /workspace-panel-open/,
+  );
+});
+
+test("dark mode is default and theme choice persists", async ({ page }) => {
+  await mockGuestSession(page);
+  await page.goto("/");
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(
+    page.getByRole("button", { name: "Switch to dark mode" }),
+  ).toBeVisible();
+});
+
+test("desktop rails scroll without moving the workspace", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await mockGuestSession(page);
+  await page.goto("/");
+
+  const tools = page.getByLabel("HLD tools");
+  const canvas = page.locator(".board-canvas");
+  const canvasTop = (await canvas.boundingBox())?.y;
+
+  await tools.hover();
+  await page.mouse.wheel(0, 700);
+  await expect.poll(() => tools.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect.poll(async () => (await canvas.boundingBox())?.y).toBe(canvasTop);
+});
+
 test("failed board loads show an actionable retry state", async ({ page }) => {
   let attempts = 0;
   const graph = {

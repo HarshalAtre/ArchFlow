@@ -26,6 +26,11 @@ import { useAuth } from "../auth/AuthContext";
 import { CollaborationStatus } from "../components/CollaborationStatus";
 import { BoardManagementControls } from "../components/BoardManagementControls";
 import { CanvasStateOverlay } from "../components/CanvasStateOverlay";
+import {
+  WorkspacePanelClose,
+  WorkspacePanelNav,
+  type WorkspacePanel,
+} from "../components/WorkspacePanelNav";
 import { ContextItemsEditor } from "../components/ContextItemsEditor";
 import { HistoryControls } from "../components/HistoryControls";
 import { RemoteCursors } from "../components/RemoteCursors";
@@ -166,6 +171,7 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
   const [loadError, setLoadError] = useState("");
   const [lastLoadAttemptId, setLastLoadAttemptId] = useState<string | null>(null);
   const [busyExport, setBusyExport] = useState<"pdf" | "png" | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<WorkspacePanel>(null);
   const { captureMeasurements, measurementFor } = useNodeMeasurements();
   const collaboration = useBoardCollaboration<LLDDraft>({
     boardId,
@@ -857,11 +863,17 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
 
   return (
     <main className="app-shell lld-shell">
-      <aside className="toolbar">
-        <div>
-          <p className="eyebrow">Detailed Design</p>
-          <h1>UML Class Designer</h1>
-        </div>
+      <WorkspacePanelNav activePanel={mobilePanel} onChange={setMobilePanel} />
+      <aside
+        aria-label="LLD tools"
+        className={`toolbar workspace-tools-panel ${
+          mobilePanel === "tools" ? "workspace-panel-open" : ""
+        }`}
+      >
+        <WorkspacePanelClose
+          label="Tools"
+          onClose={() => setMobilePanel(null)}
+        />
 
         <div className="tool-section">
           <span className="section-label">Saved Board</span>
@@ -1128,7 +1140,10 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
       </section>
 
       <aside
-        className="context-panel"
+        aria-label="LLD inspector"
+        className={`context-panel workspace-inspector-panel ${
+          mobilePanel === "inspector" ? "workspace-panel-open" : ""
+        }`}
         onFocusCapture={(event) => {
           if (isEditableHistoryTarget(event.target)) {
             beginTransaction();
@@ -1140,6 +1155,10 @@ export function LLDPage({ requestedBoardId }: LLDPageProps) {
           }
         }}
       >
+        <WorkspacePanelClose
+          label="Inspector"
+          onClose={() => setMobilePanel(null)}
+        />
         <LLDContextPanel
           selectedClass={selectedClass}
           selectedRelationship={selectedRelationship}
@@ -1510,7 +1529,7 @@ function UmlRelationshipEdge({
   const hasEndTriangle =
     relationship.kind === "inheritance" || relationship.kind === "implementation";
   const hasEndArrow = relationship.kind === "association" || relationship.kind === "dependency";
-  const strokeColor = selected ? "#1d4ed8" : "#334155";
+  const strokeColor = selected ? "var(--color-accent)" : "var(--color-ink-2)";
   const label = relationship.label || labelForRelationshipKind(relationship.kind);
 
   return (
@@ -1526,7 +1545,12 @@ function UmlRelationshipEdge({
             refY="8"
             viewBox="0 0 16 16"
           >
-            <path d="M 2 2 L 14 8 L 2 14 z" fill="#ffffff" stroke={strokeColor} strokeWidth="1.5" />
+            <path
+              d="M 2 2 L 14 8 L 2 14 z"
+              fill="var(--color-paper)"
+              stroke={strokeColor}
+              strokeWidth="1.5"
+            />
           </marker>
         ) : null}
         {hasEndArrow ? (
@@ -1554,7 +1578,7 @@ function UmlRelationshipEdge({
           >
             <path
               d="M 2 9 L 8 2 L 16 9 L 8 16 z"
-              fill={isComposition ? strokeColor : "#ffffff"}
+              fill={isComposition ? strokeColor : "var(--color-paper)"}
               stroke={strokeColor}
               strokeWidth="1.5"
             />

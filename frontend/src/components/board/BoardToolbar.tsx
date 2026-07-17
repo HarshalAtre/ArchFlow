@@ -10,6 +10,7 @@ import { ShareBoardControl } from "../ShareBoardControl";
 import { TransferControls } from "../TransferControls";
 import { VersionHistory } from "../VersionHistory";
 import { BoardManagementControls } from "../BoardManagementControls";
+import { WorkspacePanelClose } from "../WorkspacePanelNav";
 import type { BoardAccessRole } from "../../types/board";
 import type { ShareRole } from "../../services/sharingApi";
 import { labelForType } from "./boardLabels";
@@ -34,6 +35,7 @@ type BoardToolbarProps = {
   readOnly: boolean;
   saveStatus: SaveStatus;
   statusMessage: string;
+  mobileOpen: boolean;
   onAddNode: (type: BoardElementType) => void;
   onAnalyze: () => void;
   onBoardNameChange: (name: string) => void;
@@ -55,6 +57,7 @@ type BoardToolbarProps = {
   ) => Promise<{ boardId: string; shareUrl: string }>;
   onRestoreVersion: (graph: BoardGraph) => void;
   onUndo: () => void;
+  onMobileClose: () => void;
 };
 
 export function BoardToolbar({
@@ -75,6 +78,7 @@ export function BoardToolbar({
   readOnly,
   saveStatus,
   statusMessage,
+  mobileOpen,
   onAddNode,
   onAnalyze,
   onBoardNameChange,
@@ -94,13 +98,14 @@ export function BoardToolbar({
   onCreateShareLink,
   onRestoreVersion,
   onUndo,
+  onMobileClose,
 }: BoardToolbarProps) {
   return (
-    <aside className="toolbar">
-      <div>
-        <p className="eyebrow">Architecture Board</p>
-        <h1>ArchFlow</h1>
-      </div>
+    <aside
+      aria-label="HLD tools"
+      className={`toolbar workspace-tools-panel ${mobileOpen ? "workspace-panel-open" : ""}`}
+    >
+      <WorkspacePanelClose label="Tools" onClose={onMobileClose} />
 
       {recentBoards.length > 0 ? (
         <div className="tool-section">

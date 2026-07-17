@@ -1,0 +1,35 @@
+[
+  {
+    "date": "2026-07-17",
+    "scope": "app",
+    "project": "ArchFlow",
+    "verb": "redesign",
+    "genre": "modern-minimal",
+    "macrostructure": "Workbench",
+    "theme": "dark-default technical neutral with persistent light alternate and restrained cobalt accent",
+    "typography": {
+      "display": "IBM Plex Mono",
+      "body": "IBM Plex Sans"
+    },
+    "designSystem": "design.md",
+    "critique": {
+      "philosophy": 5,
+      "hierarchy": 5,
+      "execution": 5,
+      "specificity": 5,
+      "restraint": 5,
+      "variety": 4
+    },
+    "verifiedViewports": [320, 375, 390, 414, 768, 1440],
+    "checks": {
+      "horizontalOverflow": false,
+      "runtimeErrors": false,
+      "hldAndLldCanvasVisible": true,
+      "responsiveDrawers": true,
+      "typecheck": "passed",
+      "unitTests": "34 passed",
+      "e2eTests": "7 passed",
+      "productionBuild": "passed"
+    }
+  }
+]

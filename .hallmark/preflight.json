@@ -1,0 +1,17 @@
+{
+  "scannedAt": "2026-07-17",
+  "framework": "React 18 with Vite and TypeScript",
+  "fontStackBefore": "Inter with system fallbacks",
+  "paletteBefore": "Raw hex values centered on cobalt and cool gray",
+  "motionBefore": "CSS state transitions only",
+  "spacingBefore": "Mostly 4px and 8px multiples without named tokens",
+  "designSystem": "design.md",
+  "preserve": [
+    "React Flow canvas behavior",
+    "HLD and LLD component ownership",
+    "board operations",
+    "authentication",
+    "collaboration",
+    "import and export"
+  ]
+}

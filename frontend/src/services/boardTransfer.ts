@@ -329,9 +329,12 @@ async function captureCanvas(canvasElement: HTMLElement, bounds: Rect): Promise<
 
   const { width, height } = exportDimensions(bounds);
   const viewport = getViewportForBounds(bounds, width, height, 0.1, 1, 0.08);
+  const backgroundColor = getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-paper-2")
+    .trim();
 
   return toPng(viewportElement, {
-    backgroundColor: "#f8fafc",
+    backgroundColor: backgroundColor || "oklch(96.5% 0.007 250)",
     cacheBust: true,
     height,
     pixelRatio: 2,
